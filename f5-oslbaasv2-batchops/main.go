@@ -44,7 +44,7 @@ var (
 	logger  = log.New(os.Stdout, "", log.LstdFlags)
 	usage   = fmt.Sprintf("Usage: \n\n    %s [command arguments] -- <neutron command and arguments>[ ++ variable-definition]\n\n", os.Args[0])
 	example = fmt.Sprintf("Example:\n\n    %s --concurrency --output /dev/stdout \\\n    "+
-		"-- neutron lbaas-loadbalancer-create --name lb%s %s \\\n    ++ x:1-5 y:private-subnet,public-subnet\n\n", os.Args[0], "{x}", "{y}")
+		"-- loadbalancer-create --name lb%s %s \\\n    ++ x:1-5 y:private-subnet,public-subnet\n\n", os.Args[0], "{x}", "{y}")
 	varRegexp = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
 	cmdList   = []string{}
 

@@ -1,4 +1,4 @@
-# f5-oslbaasv2-logtool
+# f5-oslbaasv2-parselog
 
 This is a program(in golang) used to analyze logs from f5 OpenStack LBaaSv2 provider, includes:
 * f5-openstack-lbaasv2-driver (https://github.com/F5Networks/f5-openstack-lbaasv2-driver) and 

@@ -5,11 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch",
+            "name": "debug f5-oslbaasv2-batchops",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}/f5-oslbaasv2-batchops",
             "env": {
                 "OS_PROJECT_DOMAIN_ID": "default",
                 "OS_REGION_NAME": "RegionOne",
@@ -24,7 +24,6 @@
                 "OS_VOLUME_API_VERSION": "2",
                 "OS_CACERT": ""
             },
-            // "envFile": "/opt/stack/devstack/openrc",
             // "args": [
             //     "--",
             //     "loadbalancer-show",
@@ -33,13 +32,10 @@
             //     "x:1-5"
             // ]
             "args": [
-                "--output",
-                "b.json",
-                "--",
-                "loadbalancer-list"
+                "--output", "output/test.json",
+                "--", "loadbalancer-list"
             ]
             // "args": [
-            //     "--cocurrent",
             //     "--output",
             //     "here.txt",
             //     "--",
@@ -61,7 +57,7 @@
             "env": {},
             "args": [
                 "--logpath", "../req-1a9d27bf-6c9e-41f0-9f95-e03fc571c451.create_member-11.log",
-                "--output-filepath", "./a234.csv"
+                "--output-filepath", "./output/test.csv"
             ]
         }
     ]
