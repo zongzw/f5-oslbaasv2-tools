@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cdir=`cd $(dirname $0); pwd`
-progs="f5-oslbaasv2-batchops f5-oslbaasv2-parselog"
+progs="f5-oslbaasv2-batchops f5-oslbaasv2-parselog f5-oslbaasv2-taillog"
 
 for n in $progs; do
     docker run --rm \

@@ -53,11 +53,25 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
+            "program": "${workspaceFolder}/f5-oslbaasv2-parselog",
             "env": {},
             "args": [
                 "--logpath", "../req-1a9d27bf-6c9e-41f0-9f95-e03fc571c451.create_member-11.log",
                 "--output-filepath", "./output/test.csv"
+            ]
+        },
+        {
+            "name": "debug f5-oslbaasv2-taillog",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/f5-oslbaasv2-taillog",
+            "env": {},
+            "args": [
+                "--logpath", "/var/log/log-volume/f5-oslbaasv2-tools/f5-oslbaasv2-taillog/tests/req-test.log",
+                "--output-dirpath", "/var/log/log-volume/f5-oslbaasv2-tools/f5-oslbaasv2-taillog/output",
+                "--begin-time", "2020-10-01 14:56:18.023",
+                "--end-time", "2020-10-25 15:04:09.000"
             ]
         }
     ]

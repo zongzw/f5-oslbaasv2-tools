@@ -1,5 +1,5 @@
 f5-oslbaasv2-logtool*
-test.log
+tests
 output
 go.sum
 dist
