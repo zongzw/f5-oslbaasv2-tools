@@ -135,17 +135,19 @@ func SeekToDateTime(fh *os.File, datetime time.Time) (int64, error) {
 			return cPos, nil
 		}
 		cPos = (sPos + ePos) / 2
-		dt, err := TimeOfPosition(fh, cPos)
-		if err != nil {
-			retry++
-			// TODO: it cannot handle lines without timestamp.
-			cPos, err = PreviousLinePos(fh, cPos)
+		var dt time.Time
+		for cPos > sPos {
+			dt, err = TimeOfPosition(fh, cPos)
 			if err != nil {
-				return -1, err
+				retry++
+				cPos, err = PreviousLinePos(fh, cPos)
+				if err != nil {
+					return -1, err
+				}
+			} else {
+				retry = 0
+				break
 			}
-			continue
-		} else {
-			retry = 0
 		}
 
 		if dt.Before(datetime) {
@@ -158,10 +160,11 @@ func SeekToDateTime(fh *os.File, datetime time.Time) (int64, error) {
 	}
 
 	if retry >= retryMax {
-		return -1, fmt.Errorf(
+		fmt.Printf(
 			"File %s max retries(%d) while finding timestamp, "+
 				"but no found, check the log has timestamps",
 			stat.Name(), retryMax)
+		return cPos, nil
 	}
 
 	return cPos, nil
