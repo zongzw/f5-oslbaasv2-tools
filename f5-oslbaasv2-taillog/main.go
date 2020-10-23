@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,70 +22,74 @@ const patternDatetime = `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`
 var (
 	regexpDatetimePID = regexp.MustCompile(patternDatetimePID)
 	regexpDatetime    = regexp.MustCompile(patternDatetime)
+	logger            = log.New(os.Stdout, "", log.LstdFlags)
 )
 
 func main() {
-	var start, end string
-	var single, gz bool
+
+	var begindts, enddts string
+	var gz bool
 	var filters StringArray
 	var logPaths StringArray
 	var output string
 
-	flag.BoolVar(&single, "single", false, "Saving to a single file?")
+	ndt := time.Now()
+	defaultdts := ndt.Format(fkDatetimeFormat)
 	flag.BoolVar(&gz, "gz", false, "gzip the output files?")
-	flag.StringVar(&start, "begin-time", "", "start datetime, format: 2006-01-02 15:04:05.000")
-	flag.StringVar(&end, "end-time", "", "end datetime, format: 2006-01-02 15:04:05.000")
+	flag.StringVar(&begindts, "begin-time", "2000-01-01 00:00:00.000", "start datetime, format: 2006-01-02 15:04:05[.000].")
+	flag.StringVar(&enddts, "end-time", defaultdts, "end datetime, format: 2006-01-02 15:04:05[.000]")
 	flag.Var(&filters, "filter", "filter keys, regexp supported.")
 	flag.Var(&logPaths, "logpath", "log paths, regexp supported.")
 	flag.StringVar(&output, "output-dirpath", ".", "output folder, will be created if not exists.")
 	flag.Parse()
 
-	if start == "" || end == "" {
-		fmt.Printf("start time and end time cannot be empty.\n")
-		return
-	}
-	fmt.Printf("start: %s, end: %s, single: %v, gz: %v, filters: %v, logpaths: %v, logdir: %s\n",
-		start, end, single, gz, filters, logPaths, output)
+	logger.Printf("start: %s, end: %s, gz: %v, filters: %v, logpaths: %v, logdir: %s\n",
+		begindts, enddts, gz, filters, logPaths, output)
 
 	for _, lf := range logPaths {
 		fh, e := os.Open(lf)
 		if e != nil {
-			fmt.Printf("Failed to open file for reading: %s\n", e.Error())
+			logger.Printf("Failed to open file for reading: %s\n", e.Error())
 			continue
 		}
 
-		endT, _ := TimeStringToTime(end)
-		beginT, _ := TimeStringToTime(start)
-		ePos, err := SeekToDateTime(fh, endT)
+		enddt, _ := TimeStringToTime(enddts)
+		begindt, _ := TimeStringToTime(begindts)
+		ePos, err := SeekToDateTime(fh, enddt)
 		if err != nil {
-			fmt.Printf("failed to seed to time: %s: %s\n", end, err.Error())
+			logger.Printf("failed to seed to time: %s: %s\n", enddts, err.Error())
 			continue
 		}
 
-		sPos, err := SeekToDateTime(fh, beginT)
+		sPos, err := SeekToDateTime(fh, begindt)
 		if err != nil {
-			fmt.Printf("failed to seed to time: %s: %s\n", start, err.Error())
+			logger.Printf("failed to seed to time: %s: %s\n", begindts, err.Error())
 			continue
 		}
 
 		sStart, _, err := LineStartAndEnd(fh, sPos)
 		if err != nil {
-			fmt.Printf("File %s failed to determine the start line to copy.", lf)
+			logger.Printf("File %s failed to determine the start line to copy.", lf)
 			continue
 		}
 		_, eEnd, err := LineStartAndEnd(fh, ePos)
 		if err != nil {
-			fmt.Printf("File %s failed to determine the end line to copy.", lf)
+			logger.Printf("File %s failed to determine the end line to copy.", lf)
 			continue
 		}
 
+		begindtsRefmt := fmt.Sprintf("%d%d%d%d%d%d",
+			begindt.Year(), begindt.Month(), begindt.Day(), begindt.Hour(), begindt.Minute(), begindt.Second())
+		enddtsRefmt := fmt.Sprintf("%d%d%d%d%d%d",
+			enddt.Year(), enddt.Month(), enddt.Day(), enddt.Hour(), enddt.Minute(), enddt.Second())
+		outFileName := filepath.Base(lf) + "-" + begindtsRefmt + "-" + enddtsRefmt
 		fw, err := os.OpenFile(
-			strings.Join([]string{output, filepath.Base(lf)}, "/"),
+			strings.Join([]string{output, outFileName}, "/"),
 			os.O_CREATE|os.O_WRONLY, os.ModePerm)
 
 		err = TailAt(fh, fw, sStart, eEnd)
 		if err != nil {
-			fmt.Printf("File %s reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
+			logger.Printf("File %s reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
 		}
 	}
 
@@ -124,9 +129,7 @@ func SeekToDateTime(fh *os.File, datetime time.Time) (int64, error) {
 	ePos := filesize - 1
 	cPos := (sPos + ePos) / 2
 
-	retryMax := 64 // incase the whole file has no timestamp at all.
-	retry := 0
-	for sPos < ePos && retry < retryMax {
+	for sPos < ePos {
 		sameLine, err := IsInSameLine(fh, sPos, ePos)
 		if err != nil {
 			return -1, err
@@ -135,19 +138,36 @@ func SeekToDateTime(fh *os.File, datetime time.Time) (int64, error) {
 			return cPos, nil
 		}
 		cPos = (sPos + ePos) / 2
+		// fmt.Println(sPos, cPos, ePos, ePos-sPos)
 		var dt time.Time
-		for cPos > sPos {
-			dt, err = TimeOfPosition(fh, cPos)
+		dt, err = TimeOfPosition(fh, cPos)
+		if err != nil {
+			pdt, pPos, err := PreviousDateTimeLine(fh, cPos)
 			if err != nil {
-				retry++
-				cPos, err = PreviousLinePos(fh, cPos)
-				if err != nil {
-					return -1, err
-				}
-			} else {
-				retry = 0
-				break
+				return -1, fmt.Errorf("file %s, failed to get previous time line: %d",
+					fh.Name(), cPos)
 			}
+			ndt, nPos, err := NextDateTimeLine(fh, cPos)
+			if err != nil {
+				return -1, fmt.Errorf("file %s, failed to get next time line: %d",
+					fh.Name(), cPos)
+			}
+			if pPos == -1 {
+				return 0, nil
+			} else if nPos >= stat.Size() {
+				return stat.Size() - 1, nil
+			} else {
+				if pdt.After(datetime) {
+					ePos = pPos - 1
+					continue
+				} else if ndt.Before(datetime) {
+					sPos = nPos + 1
+					continue
+				} else {
+					return cPos, nil
+				}
+			}
+
 		}
 
 		if dt.Before(datetime) {
@@ -159,15 +179,47 @@ func SeekToDateTime(fh *os.File, datetime time.Time) (int64, error) {
 		}
 	}
 
-	if retry >= retryMax {
-		fmt.Printf(
-			"File %s max retries(%d) while finding timestamp, "+
-				"but no found, check the log has timestamps",
-			stat.Name(), retryMax)
-		return cPos, nil
-	}
-
 	return cPos, nil
+}
+
+// PreviousDateTimeLine return the previous line which contains datetime.
+func PreviousDateTimeLine(fh *os.File, nPos int64) (time.Time, int64, error) {
+
+	prevPos := nPos
+	for prevPos >= 0 {
+		dt, err := TimeOfPosition(fh, prevPos)
+		if err != nil {
+			prevPos, err = PreviousLinePos(fh, prevPos)
+			if err != nil {
+				return time.Now(), prevPos, err
+			} else if prevPos == -1 {
+				return time.Now(), prevPos, nil
+			}
+		} else {
+			return dt, prevPos, nil
+		}
+	}
+	return time.Now(), -1, fmt.Errorf("file %s, Failed to find the previous time line, nPos: %d", fh.Name(), nPos)
+}
+
+// NextDateTimeLine return the next line which contains datetime.
+func NextDateTimeLine(fh *os.File, nPos int64) (time.Time, int64, error) {
+	nextPos := nPos
+	stat, _ := fh.Stat()
+	for nextPos < stat.Size() {
+		dt, err := TimeOfPosition(fh, nextPos)
+		if err != nil {
+			nextPos, err = NextLinePos(fh, nextPos)
+			if err != nil {
+				return time.Now(), nextPos, err
+			} else if nextPos >= stat.Size() {
+				return time.Now(), stat.Size(), nil
+			}
+		} else {
+			return dt, nextPos, nil
+		}
+	}
+	return time.Now(), -1, fmt.Errorf("file %s, Failed to find the next time line, nPos: %d", fh.Name(), nPos)
 }
 
 // IsInSameLine check  the mPos and nPos are in the same line.
@@ -181,17 +233,19 @@ func IsInSameLine(fh *os.File, mPos, nPos int64) (bool, error) {
 		return false, e2
 	}
 
-	if a == b {
-		return true, nil
-	} else {
-		return false, nil
-	}
+	return a == b, nil
 }
 
 // PreviousLinePos return the previous line pos.
 func PreviousLinePos(fh *os.File, nPos int64) (int64, error) {
 	a, _, err := LineStartAndEnd(fh, nPos)
 	return a - 1, err
+}
+
+// NextLinePos return a position belong to next line.
+func NextLinePos(fh *os.File, nPos int64) (int64, error) {
+	_, b, err := LineStartAndEnd(fh, nPos)
+	return b + 1, err
 }
 
 // TimeOfPosition return the timestamp parsed from the line around nPos
@@ -223,11 +277,14 @@ func LineStartAndEnd(fh *os.File, nPos int64) (int64, int64, error) {
 	buff := make([]byte, buffSize)
 
 	start = nPos
+	nPosInBuff := int64(0)
 	for start > 0 {
 		if start < buffSize {
+			nPosInBuff = start
 			start = 0
 		} else {
 			start = start - buffSize
+			nPosInBuff = buffSize
 		}
 
 		_, err := fh.ReadAt(buff, start)
@@ -236,7 +293,7 @@ func LineStartAndEnd(fh *os.File, nPos int64) (int64, int64, error) {
 				"File %s ReadAt %d failed: %s", stat.Name(), start, err.Error())
 		}
 
-		i := strings.LastIndex(string(buff), "\n")
+		i := strings.LastIndex(string(buff[0:nPosInBuff]), "\n")
 		if i != -1 {
 			start = start + int64(i+1)
 			break
