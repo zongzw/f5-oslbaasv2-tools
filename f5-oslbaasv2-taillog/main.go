@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -28,14 +29,12 @@ var (
 func main() {
 
 	var begindts, enddts string
-	var gz bool
 	var filters StringArray
 	var logPaths StringArray
 	var output string
 
 	ndt := time.Now()
 	defaultdts := ndt.Format(fkDatetimeFormat)
-	flag.BoolVar(&gz, "gz", false, "gzip the output files?")
 	flag.StringVar(&begindts, "begin-time", "2000-01-01 00:00:00.000", "start datetime, format: 2006-01-02 15:04:05[.000].")
 	flag.StringVar(&enddts, "end-time", defaultdts, "end datetime, format: 2006-01-02 15:04:05[.000]")
 	flag.Var(&filters, "filter", "filter keys, regexp supported.")
@@ -43,10 +42,10 @@ func main() {
 	flag.StringVar(&output, "output-dirpath", ".", "output folder, will be created if not exists.")
 	flag.Parse()
 
-	logger.Printf("start: %s, end: %s, gz: %v, filters: %v, logpaths: %v, logdir: %s\n",
-		begindts, enddts, gz, filters, logPaths, output)
+	logger.Printf("start: %s, end: %s, filters: %v, logpaths: %v, logdir: %s\n",
+		begindts, enddts, filters, logPaths, output)
 
-	for _, lf := range logPaths {
+	for i, lf := range logPaths {
 		fh, e := os.Open(lf)
 		if e != nil {
 			logger.Printf("Failed to open file for reading: %s\n", e.Error())
@@ -90,20 +89,71 @@ func main() {
 			begindt.Year(), begindt.Month(), begindt.Day(), begindt.Hour(), begindt.Minute(), begindt.Second())
 		enddtsRefmt := fmt.Sprintf("%d%d%d%d%d%d",
 			enddt.Year(), enddt.Month(), enddt.Day(), enddt.Hour(), enddt.Minute(), enddt.Second())
-		outFileName := filepath.Base(lf) + "-" + begindtsRefmt + "-" + enddtsRefmt
+		outFileName := fmt.Sprintf("%d-", i) + filepath.Base(lf) + "-" + begindtsRefmt + "-" + enddtsRefmt
 		fw, err := os.OpenFile(
 			strings.Join([]string{output, outFileName}, "/"),
 			os.O_CREATE|os.O_WRONLY, os.ModePerm)
+		if err != nil {
+			logger.Panicf("Failed to open %s for writing: %s.\n",
+				strings.Join([]string{output, outFileName}, "/"), err.Error())
+		}
 		defer fw.Close()
 
-		err = TailAt(fh, fw, sStart, eEnd)
-		if err != nil {
-			logger.Printf("File %s reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
+		if len(filters) > 0 {
+			err := FilterAt(fh, fw, sStart, eEnd, filters)
+			if err != nil {
+				logger.Printf("File %s filter reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
+			} else {
+				logger.Printf("File %s filter reading from %d to %d, bytes: %d\n", lf, sStart, eEnd, eEnd-sStart)
+			}
 		} else {
-			logger.Printf("File %s reading from %d to %d, bytes: %d\n", lf, sStart, eEnd, eEnd-sStart)
+			err = TailAt(fh, fw, sStart, eEnd)
+			if err != nil {
+				logger.Printf("File %s reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
+			} else {
+				logger.Printf("File %s reading from %d to %d, bytes: %d\n", lf, sStart, eEnd, eEnd-sStart)
+			}
+		}
+	}
+}
+
+// FilterAt filter from start to end and write the matched lines to fw.
+func FilterAt(fr, fw *os.File, start, end int64, filters StringArray) error {
+	buffSize := 512 * 1024
+	buff := make([]byte, buffSize)
+
+	scanner := bufio.NewScanner(fr)
+	scanner.Buffer(buff, buffSize)
+
+	reglist := []*regexp.Regexp{}
+	for _, f := range filters {
+		r, err := regexp.Compile(f)
+		if err != nil {
+			return err
+		}
+		reglist = append(reglist, r)
+	}
+
+	fr.Seek(start, 0)
+	totalRead := int64(0)
+	totalWrite := int64(0)
+	for totalRead < end-start && scanner.Scan() {
+		txt := scanner.Text()
+		totalRead = totalRead + int64(len(txt)+1)
+		for _, r := range reglist {
+			if r.MatchString(txt) {
+				_, err := fw.WriteString(txt + "\n")
+				if err != nil {
+					return err
+				}
+				totalWrite = totalWrite + int64(len(txt)+1)
+				break
+			}
 		}
 	}
 
+	logger.Printf("File %s totalread %d, totalwrite %d\n", fr.Name(), totalRead, totalWrite)
+	return nil
 }
 
 // TailAt tail the file content from start to end to fw.
