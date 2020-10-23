@@ -52,19 +52,27 @@ func main() {
 			logger.Printf("Failed to open file for reading: %s\n", e.Error())
 			continue
 		}
+		defer fh.Close()
 
 		enddt, _ := TimeStringToTime(enddts)
 		begindt, _ := TimeStringToTime(begindts)
+
+		tsSeek := time.Now()
 		ePos, err := SeekToDateTime(fh, enddt)
 		if err != nil {
 			logger.Printf("failed to seed to time: %s: %s\n", enddts, err.Error())
 			continue
+		} else {
+			logger.Printf("Seeking %s took %d millisec.\n", enddts, time.Now().Sub(tsSeek).Milliseconds())
 		}
 
+		tsSeek = time.Now()
 		sPos, err := SeekToDateTime(fh, begindt)
 		if err != nil {
 			logger.Printf("failed to seed to time: %s: %s\n", begindts, err.Error())
 			continue
+		} else {
+			logger.Printf("Seeking %s took %d millisec.\n", begindts, time.Now().Sub(tsSeek).Milliseconds())
 		}
 
 		sStart, _, err := LineStartAndEnd(fh, sPos)
@@ -86,10 +94,13 @@ func main() {
 		fw, err := os.OpenFile(
 			strings.Join([]string{output, outFileName}, "/"),
 			os.O_CREATE|os.O_WRONLY, os.ModePerm)
+		defer fw.Close()
 
 		err = TailAt(fh, fw, sStart, eEnd)
 		if err != nil {
 			logger.Printf("File %s reading from %d to %d failed: %s\n", lf, sStart, eEnd, err.Error())
+		} else {
+			logger.Printf("File %s reading from %d to %d, bytes: %d\n", lf, sStart, eEnd, eEnd-sStart)
 		}
 	}
 
