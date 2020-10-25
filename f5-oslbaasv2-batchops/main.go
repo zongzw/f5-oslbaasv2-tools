@@ -44,7 +44,7 @@ type CommandResult struct {
 var (
 	logger  = log.New(os.Stdout, "", log.LstdFlags)
 	usage   = fmt.Sprintf("Usage: \n\n    %s [command arguments] -- <neutron command and arguments>[ ++ variable-definition]\n\n", os.Args[0])
-	example = fmt.Sprintf("Example:\n\n    %s --concurrency --output /dev/stdout \\\n    "+
+	example = fmt.Sprintf("Example:\n\n    %s --concurrency --output-filepath /dev/stdout \\\n    "+
 		"-- loadbalancer-create --name lb%s %s \\\n    ++ x:1-5 y:private-subnet,public-subnet\n\n", os.Args[0], "{x}", "{y}")
 	varRegexp = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
 	cmdList   = []string{}
@@ -102,6 +102,7 @@ func PrintReport() {
 
 	fmt.Println()
 	fmt.Println("---------------------- Execution Report ----------------------")
+	fmt.Println()
 	for _, n := range cmdResults {
 		fmt.Printf("%d: %s | Exited: %d | Checked: %s | duration: %d ms\n",
 			n.Seq, n.Command, n.ExitCode, n.CheckedResult, n.CheckedDuration.Milliseconds())

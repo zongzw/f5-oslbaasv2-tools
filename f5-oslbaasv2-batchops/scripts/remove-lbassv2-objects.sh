@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# This is the script to delete ALL lbaasv2 resources, So BE CAUTIOUS to use this script. 
+# If you have lbaasv2 resources rather than performance test, DON'T use this script.
+
+# *************** BE CAUTIOUS, THIS SCRIPT WILL REMOVE ALL LBAASV2 OBJECTS ***************
+
+# In sequence, it will delete all healthmonitor > pool and member > l7policy > listener > loadbalancer.
+# The script use 'neutron lbaas-<resource_type>-list -f value -c id' to find resource id, 
+# and then use 'neutron lbaas-<resource_type>-delete' to delete them one by one.
+
+# healthmonitor
 echo "Deleting healthmonitor ..."
 hms=`neutron lbaas-healthmonitor-list -f value -c id`
 for j in $hms; do
@@ -9,6 +19,7 @@ for j in $hms; do
     echo 
 done
 
+# pool and member
 echo "Deleting pool and members ..."
 pls=`neutron lbaas-pool-list -f value -c id`
 for l in $pls; do
@@ -25,6 +36,7 @@ for l in $pls; do
     echo 
 done
 
+# l7policy
 echo "Deleting l7policies ..."
 l7ps=`neutron lbaas-l7policy-list -f value -c id`
 for l in $l7ps; do
@@ -34,6 +46,7 @@ for l in $l7ps; do
     echo
 done
 
+# listener
 echo "Deleting listeners ..."
 lss=`neutron lbaas-listener-list -f value -c id`
 for m in $lss; do 
@@ -43,6 +56,7 @@ for m in $lss; do
     echo 
 done
 
+# loadbalancer
 echo "Deleting loadbalancers ..."
 lbs=`neutron lbaas-loadbalancer-list -f value -c id`
 for n in $lbs; do 
