@@ -84,30 +84,56 @@ func main() {
 	jd, _ := json.MarshalIndent(cmdResults, "", "  ")
 	if output != "/dev/stdout" {
 		n, e := outputFile.WriteString(string(jd))
-		logger.Printf("Writen to file %s: data-len:%d\n", output, n)
+		logger.Printf("Writen executions to file %s: data-len:%d\n", output, n)
 		if e != nil {
 			logger.Fatalf("Error happens while writing: %s\n", e.Error())
 		}
 	} else {
 		fmt.Printf("%s\n", string(jd))
 	}
+
+	PrintReport()
+}
+
+// PrintReport print a summary to the executions.
+func PrintReport() {
+
+	fmt.Println()
+	fmt.Println("---------------------- Execution Report ----------------------")
+	for _, n := range cmdResults {
+		fmt.Printf("%d: %s | Exited: %d | Checked: %s | duration: %d ms\n",
+			n.Seq, n.Command, n.ExitCode, n.Checked, n.CheckedDuration.Milliseconds())
+	}
+	fmt.Println()
+	fmt.Println("Failed Command List:")
+	for _, n := range cmdResults {
+		if n.ExitCode != 0 {
+			fmt.Println(n.Command)
+		}
+	}
+	fmt.Println()
+	fmt.Println("-----------------------Execution Report End ---------------------")
+	fmt.Println()
 }
 
 // RunCmds Execute the generated commands analyze result.
 func RunCmds() {
 	for i, n := range cmdList {
 		fullCmd := fmt.Sprintf("%s%s", cmdPrefix, n)
-		logger.Printf("Command(%d/%d): '%s' starts\n", i+1, len(cmdList), fullCmd)
+		logger.Printf("Command(%d/%d): Start '%s'\n", i+1, len(cmdList), fullCmd)
 
 		cr := RunCommand(fullCmd)
 		cr.Seq = i + 1
 
-		logger.Printf("Command(%d/%d): exits with: %d, executing time: %s \n", cr.Seq, len(cmdList), cr.ExitCode, cr.CmdDuration)
+		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms\n", cr.Seq, len(cmdList), cr.ExitCode, cr.CmdDuration.Milliseconds())
+		time.Sleep(time.Duration(1) * time.Second)
 
 		// check the command execution.
 		if cr.ExitCode == 0 {
 			logger.Printf("Command(%d/%d): Checking Execution\n", cr.Seq, len(cmdList))
 			CheckExecution(&cr)
+		} else {
+			logger.Printf("Command(%d/%d): Error output: %s\n", cr.Seq, len(cmdList), cr.Err)
 		}
 		cmdResults = append(cmdResults, cr)
 	}
@@ -122,7 +148,12 @@ func CheckExecution(rlt *CommandResult) {
 	fs := time.Now()
 	if operation == "create" || operation == "update" {
 		checkCmd := fmt.Sprintf("neutron lbaas-%s-show %s", resourceType, rlt.Out["id"])
-		logger.Printf("Command(%d/%d): use command: '%s' to check.\n", rlt.Seq, len(cmdList), checkCmd)
+		if resourceType == "member" {
+			cs := strings.Split(rlt.Command, " ")
+			l := len(cs)
+			checkCmd = checkCmd + " " + cs[l-1]
+		}
+		logger.Printf("Command(%d/%d): Check with command: '%s'\n", rlt.Seq, len(cmdList), checkCmd)
 
 		for true {
 			cr := RunCommand(checkCmd)
@@ -137,7 +168,7 @@ func CheckExecution(rlt *CommandResult) {
 			if strings.HasPrefix(stat.ProvisioningStatus, "PENDING_") {
 				continue
 			} else {
-				rlt.Checked = fmt.Sprintf("%s: %s", stat.ID, stat.ProvisioningStatus)
+				rlt.Checked = fmt.Sprintf("%s %s", stat.ID, stat.ProvisioningStatus)
 				break
 			}
 		}
@@ -147,7 +178,7 @@ func CheckExecution(rlt *CommandResult) {
 	fe := time.Now()
 
 	rlt.CheckedDuration = fe.Sub(fs) + rlt.CmdDuration
-	logger.Printf("Command(%d/%d): check done, done time: %s\n", rlt.Seq, len(cmdList), rlt.CheckedDuration)
+	logger.Printf("Command(%d/%d): check done, done time: %d ms\n", rlt.Seq, len(cmdList), rlt.CheckedDuration.Milliseconds())
 }
 
 // RunCommand run the command and fill CommandResult body
