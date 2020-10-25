@@ -7,6 +7,11 @@
             "label": "echo",
             "type": "shell",
             "command": "echo Hello"
-        }
+        },
+        // { DON'T WORK.
+        //     "command": "workon openstack-client",
+        //     "label": "workon virtualenv openstack-client",
+        //     "type": "process"
+        // }
     ]
 }

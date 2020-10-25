@@ -31,22 +31,24 @@
             //     "++",
             //     "x:1-5"
             // ]
-            "args": [
-                "--output", "output/test.json",
-                "--", "loadbalancer-list"
-            ]
             // "args": [
-            //     "--output",
-            //     "here.txt",
-            //     "--",
-            //     "lbaas-loadbalancer-create",
-            //     "--name",
-            //     "lb%{index}-%{subnet}",
-            //     "%{subnet}",
-            //     "++",
-            //     "index:1-5",
-            //     "subnet:private-subnet,public-subnet"
+            //     "--output-filepath", "output/test.json",
+            //     "--", "loadbalancer-list"
             // ]
+            "args": [
+                "--output-filepath",
+                "output/test.json",
+                "--check-lb",
+                "lb%{index}",
+                "--",
+                "loadbalancer-create",
+                "--name",
+                "lb%{index}-%{subnet}",
+                "%{subnet}",
+                "++",
+                "index:1-5",
+                "subnet:private-subnet,public-subnet"
+            ]
         },
         {
             "name": "debug f5-oslbaasv2-parselog",

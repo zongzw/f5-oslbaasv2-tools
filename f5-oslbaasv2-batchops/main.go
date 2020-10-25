@@ -36,8 +36,9 @@ type CommandResult struct {
 	Err             string                 `json:"error"`
 	ExitCode        int                    `json:"exitcode"`
 	CmdDuration     time.Duration          `json:"cmd_duration"`
-	Checked         string                 `json:"success"`
+	CheckedResult   string                 `json:"done_status"`
 	CheckedDuration time.Duration          `json:"done_duration"`
+	CheckedLB       string                 `json:"done_loadbalancer"`
 }
 
 var (
@@ -49,6 +50,7 @@ var (
 	cmdList   = []string{}
 
 	output     string
+	checkLB    string
 	outputFile *os.File
 
 	cmdResults = []CommandResult{}
@@ -102,7 +104,7 @@ func PrintReport() {
 	fmt.Println("---------------------- Execution Report ----------------------")
 	for _, n := range cmdResults {
 		fmt.Printf("%d: %s | Exited: %d | Checked: %s | duration: %d ms\n",
-			n.Seq, n.Command, n.ExitCode, n.Checked, n.CheckedDuration.Milliseconds())
+			n.Seq, n.Command, n.ExitCode, n.CheckedResult, n.CheckedDuration.Milliseconds())
 	}
 	fmt.Println()
 	fmt.Println("Failed Command List:")
@@ -119,10 +121,12 @@ func PrintReport() {
 // RunCmds Execute the generated commands analyze result.
 func RunCmds() {
 	for i, n := range cmdList {
-		fullCmd := fmt.Sprintf("%s%s", cmdPrefix, n)
+		lbAndCmd := strings.Split(n, "|")
+		fullCmd := fmt.Sprintf("%s%s", cmdPrefix, lbAndCmd[1])
 		logger.Printf("Command(%d/%d): Start '%s'\n", i+1, len(cmdList), fullCmd)
 
 		cr := RunCommand(fullCmd)
+		cr.CheckedLB = lbAndCmd[0]
 		cr.Seq = i + 1
 
 		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms\n", cr.Seq, len(cmdList), cr.ExitCode, cr.CmdDuration.Milliseconds())
@@ -131,7 +135,7 @@ func RunCmds() {
 		// check the command execution.
 		if cr.ExitCode == 0 {
 			logger.Printf("Command(%d/%d): Checking Execution\n", cr.Seq, len(cmdList))
-			CheckExecution(&cr)
+			CheckLBStatus(&cr)
 		} else {
 			logger.Printf("Command(%d/%d): Error output: %s\n", cr.Seq, len(cmdList), cr.Err)
 		}
@@ -139,46 +143,53 @@ func RunCmds() {
 	}
 }
 
-// CheckExecution check the execution in backend is done.
-func CheckExecution(rlt *CommandResult) {
+// CheckLBStatus check the loadbalancer status after a commmand execution.
+func CheckLBStatus(rlt *CommandResult) {
 	args := strings.Split(rlt.Command, " ")
 	subs := strings.Split(args[1], "-")
 	resourceType, operation := subs[1], subs[2]
 
 	fs := time.Now()
-	if operation == "create" || operation == "update" {
-		checkCmd := fmt.Sprintf("neutron lbaas-%s-show %s", resourceType, rlt.Out["id"])
-		if resourceType == "member" {
-			cs := strings.Split(rlt.Command, " ")
-			l := len(cs)
-			checkCmd = checkCmd + " " + cs[l-1]
-		}
-		logger.Printf("Command(%d/%d): Check with command: '%s'\n", rlt.Seq, len(cmdList), checkCmd)
+	if operation == "create" || operation == "update" || operation == "delete" {
+		if rlt.CheckedLB == "" {
+			rlt.CheckedResult = fmt.Sprintf("no loadbalancer appointed, no check to do.")
+		} else if resourceType == "loadbalancer" && operation == "delete" {
+			rlt.CheckedResult = fmt.Sprintf("loadbalancer deleted, no check to do.")
+		} else {
+			checkCmd := fmt.Sprintf("neutron lbaas-loadbalancer-show %s", rlt.CheckedLB)
 
-		for true {
-			cr := RunCommand(checkCmd)
-			if cr.ExitCode != 0 {
-				rlt.Checked = fmt.Sprintf("Failed to check execution of %s: %s", rlt.Command, cr.Err)
-				break
-			}
+			logger.Printf("Command(%d/%d): Check with command: '%s'\n", rlt.Seq, len(cmdList), checkCmd)
 
-			var stat NeutronResponse
-			b, _ := json.Marshal(cr.Out)
-			_ = json.Unmarshal(b, &stat)
-			if strings.HasPrefix(stat.ProvisioningStatus, "PENDING_") {
-				continue
-			} else {
-				rlt.Checked = fmt.Sprintf("%s %s", stat.ID, stat.ProvisioningStatus)
-				break
+			maxTries := 32
+			tried := 0
+			for ; tried < maxTries; tried++ {
+				cr := RunCommand(checkCmd)
+				if cr.ExitCode != 0 {
+					rlt.CheckedResult = fmt.Sprintf("Failed to check execution of %s: %s", rlt.Command, cr.Err)
+					break
+				}
+
+				var stat NeutronResponse
+				b, _ := json.Marshal(cr.Out)
+				_ = json.Unmarshal(b, &stat)
+				if strings.HasPrefix(stat.ProvisioningStatus, "PENDING_") {
+					continue
+				} else {
+					rlt.CheckedResult = fmt.Sprintf("LB: %s %s", stat.ID, stat.ProvisioningStatus)
+					break
+				}
+			}
+			if tried >= maxTries {
+				rlt.CheckedResult = fmt.Sprintf("LB: %s left PENDING", rlt.CheckedLB)
 			}
 		}
-	} else { // 'show' 'list' 'delete' no need to check
-		rlt.Checked = fmt.Sprintf("%s done", args[1])
+	} else { // 'show' 'list' no need to check
+		rlt.CheckedResult = fmt.Sprintf("%s done", args[1])
 	}
 	fe := time.Now()
 
 	rlt.CheckedDuration = fe.Sub(fs) + rlt.CmdDuration
-	logger.Printf("Command(%d/%d): check done, done time: %d ms\n", rlt.Seq, len(cmdList), rlt.CheckedDuration.Milliseconds())
+	logger.Printf("Command(%d/%d): Checked time: %d ms\n", rlt.Seq, len(cmdList), rlt.CheckedDuration.Milliseconds())
 }
 
 // RunCommand run the command and fill CommandResult body
@@ -218,7 +229,8 @@ func RunCommand(cmd string) CommandResult {
 
 // HandleArguments handle user's input.
 func HandleArguments() {
-	flag.StringVar(&output, "output", "/dev/stdout", "output the result")
+	flag.StringVar(&output, "output-filepath", "/dev/stdout", "output the result")
+	flag.StringVar(&checkLB, "check-lb", "", "the loadbalancer name or id for checking execution status.")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
@@ -236,6 +248,7 @@ func HandleArguments() {
 	}
 
 	neutronCmdArgs := strings.Join(os.Args[neutronArgsIndex+1:variableArgsIndex], " ")
+	neutronCmdArgs = checkLB + "|" + neutronCmdArgs
 	logger.Printf("Command template: %s\n", neutronCmdArgs)
 
 	variables := map[string]StringArray{}
@@ -251,7 +264,7 @@ func HandleArguments() {
 		if !varStart {
 			matches := varRegexp.FindAllString(n, -1)
 			for _, m := range matches {
-				logger.Printf("found variable: %s\n", m)
+				// logger.Printf("found variable: %s\n", m)
 				l := len(m)
 				varName := m[2 : l-1]
 				variables[varName] = []string{}
