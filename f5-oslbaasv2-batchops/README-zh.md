@@ -2,6 +2,8 @@
 
 本项目旨在帮助使用者批量的执行`neutron`命令。通常在性能测试场景中会使用到。批量操作包括创建、更新、删除、查看 LBaaSv2 中的各种资源：loadbalancer/listener/pool/member/healthmonitor/l7policy/l7rule。
 
+该命令的使用方式可以参见 [./scripts/create-lbaasv2-objects.sh](./scripts/create-lbaasv2-objects.sh) 封装。通常情况下可以修改脚本中的创建参数，执行脚本完成批量创建操作。
+
 ## 使用说明
 
 此命令及参数包含三个部分：
@@ -32,7 +34,7 @@ Usage:
 Example:
 
     ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --concurrency --output-filepath /dev/stdout \
-    -- loadbalancer-create --name lb{x} {y} \
+    -- loadbalancer-create --name lb%{x} %{y} \
     ++ x:1-5 y:private-subnet,public-subnet
 
 Command Arguments:

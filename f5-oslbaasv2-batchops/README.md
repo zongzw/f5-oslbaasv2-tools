@@ -3,6 +3,8 @@
 This is a program(in golang) to help running `neutron` commands in batch.
 It is usually used to create dozens of loadbalancer resources, such as loadbalancer/listener/pool/member/healthmonitor/l7policy/l7rule for performance test.
 
+See [./scripts/create-lbaasv2-objects.sh](./scripts/create-lbaasv2-objects.sh) for f5-oslbaasv2-batchops encapsulation. Generally change the configuration inside the script and run it to finish the batch operation.
+
 ## Usage
 
 The command arguments includes 3 parts, as shown in below 'help and example':
@@ -29,7 +31,7 @@ Usage:
 Example:
 
     ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --concurrency --output-filepath /dev/stdout \
-    -- loadbalancer-create --name lb{x} {y} \
+    -- loadbalancer-create --name lb%{x} %{y} \
     ++ x:1-5 y:private-subnet,public-subnet
 
 Command Arguments:
