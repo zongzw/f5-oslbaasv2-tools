@@ -98,7 +98,7 @@ var (
 		// 7'}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5agent": MatchHandler{
 			Pattern: `%{DATETIME:call_f5agent_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{SIMPLENAME:agent_module} \[%{REQID:req_id} .*\] ` +
-				`f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
+				`f5_openstack_agent.lbaasv2.drivers.bigip.%{SIMPLENAME}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
 				`called with arguments .*`,
 			Function: Set,
 		},
