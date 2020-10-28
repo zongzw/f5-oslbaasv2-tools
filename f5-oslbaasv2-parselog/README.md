@@ -6,7 +6,29 @@ This is a program(in golang) used to analyze logs from f5 OpenStack LBaaSv2 prov
 
 ## Requirement
 
-You need to change the log level to debug `([DEFAULT] debug = True`) in agent configuration, generally `/etc/neutron/services/f5/f5-openstack-agent.ini`.
+You need to change the log level to debug:
+
+* Neutron server configuration, generally `/etc/neutron/neutron.conf`:
+
+  ```
+  #
+  # From oslo.log
+  #
+
+  # If set to true, the logging level will be set to DEBUG instead of the default
+  # INFO level. (boolean value)
+  # Note: This option can be changed without restarting.
+  debug = true
+  ```
+
+* Agent configuration, generally `/etc/neutron/services/f5/f5-openstack-agent.ini`: 
+
+  ```
+  [DEFAULT]
+  # Show debugging output in log (sets DEBUG log level output).
+  debug = True
+  ```
+
 
 ## Usage
 

@@ -22,36 +22,49 @@ type arrayFlags []string
 
 const fkTimeLayout = "2006-01-02 15:04:05"
 
+// MatchHandler a structure storing pattern and corresponding handler.
+type MatchHandler struct {
+	Pattern  string
+	Function func(values map[string]string) error
+}
+
 var (
 	logger = log.New(os.Stdout, "", log.LstdFlags)
 
 	pBasicFields = map[string]string{
-		"UUID":      `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
-		"REQID":     `req-%{UUID}`,                               // req-8cadad28-8315-45ca-818c-6a229dfb73e1
-		"DATETIME":  `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
-		"MD5":       `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
-		"JSON":      `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
-		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor)`,
-		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor)`,
-		"ACTION":    `(create|update|delete)`,
+		"UUID":       `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
+		"REQID":      `req-%{UUID}`,                               // req-8cadad28-8315-45ca-818c-6a229dfb73e1
+		"DATETIME":   `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
+		"MD5":        `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
+		"JSON":       `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
+		"LBTYPE":     `(LoadBalancer|Listener|Pool|Member|HealthMonitor)`,
+		"LBTYPESTR":  `(loadbalancer|listener|pool|member|health_monitor)`,
+		"ACTION":     `(create|update|delete)`,
+		"SIMPLENAME": `\w+`, // [0-9a-zA-Z_] strings
 	}
 
-	pLBaaSv2 = map[string]string{
+	pLBaaSv2 = map[string]MatchHandler{
 
 		// 2020-09-27 19:22:54.485 68316 DEBUG neutron.api.v2.base
 		// [req-8cadad28-8315-45ca-818c-6a229dfb73e1 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body:
 		// {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		// prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713
-		"neutron_api_v2_base": `%{DATETIME:neutron_api_time} .* neutron.api.v2.base \[%{REQID:req_id} .*\] ` +
-			`Request body: %{JSON:request_body} prepare_request_body .*$`,
+		"neutron_api_v2_base": MatchHandler{
+			Pattern: `%{DATETIME:neutron_api_time} .* neutron.api.v2.base \[%{REQID:req_id} .*\] ` +
+				`Request body: %{JSON:request_body} prepare_request_body .*$`,
+			Function: Set,
+		},
 
 		// 05neu-core/server.log-1005:2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2
 		// [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default]
 		// f5lbaasdriver.v2.bigip.driver_v2.LoadBalancerManager method create called with arguments (<neutron_lib.context.Context object at 0x284cb250>,
 		// <neutron_lbaas.services.loadbalancer.data_models.LoadBalancer object at 0xdb44250>) {}
 		// wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
-		"call_f5driver": `%{DATETIME:call_f5driver_time} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:req_id} .*\] ` +
-			`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
+		"call_f5driver": MatchHandler{
+			Pattern: `%{DATETIME:call_f5driver_time} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:req_id} .*\] ` +
+				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
+			Function: Set,
+		},
 
 		// 2020-10-05 10:20:21.924 117825 DEBUG f5lbaasdriver.v2.bigip.agent_scheduler
 		// [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default]
@@ -71,31 +84,43 @@ var (
 		// -07aa632f0133', 'provider': None, 'pools': [], 'id': 'e2d277f7-eca2-46a4-bf2c-655856fd8733', 'operating_status':
 		// 'OFFLINE', 'name': 'JL-B01-POD1-CORE-LB-7'}}, u'POD1_CORE3') {} wrapper /usr/lib/python2.7/site-packages/oslo_l
 		// og/helpers.py:66
-		"rpc_f5agent": `%{DATETIME:rpc_f5agent_time} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:req_id} .*\] ` +
-			`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
-			`.*? 'id': '%{UUID:object_id}'.*`,
+		"rpc_f5agent": MatchHandler{
+			Pattern: `%{DATETIME:rpc_f5agent_time} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:req_id} .*\] ` +
+				`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
+				`.*? 'id': '%{UUID:object_id}'.*`,
+			Function: Set,
+		},
 
 		// 2020-10-05 10:19:16.315 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager
 		// [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - - -]
 		// f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager.LbaasAgentManager method create_loadbalancer called with arguments
 		// ...
 		// 7'}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
-		"call_f5agent": `%{DATETIME:call_f5agent_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager \[%{REQID:req_id} .*\] ` +
-			`f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
-			`called with arguments .*`,
+		"call_f5agent": MatchHandler{
+			Pattern: `%{DATETIME:call_f5agent_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{SIMPLENAME:agent_module} \[%{REQID:req_id} .*\] ` +
+				`f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
+				`called with arguments .*`,
+			Function: Set,
+		},
 
 		// 2020-10-05 10:19:16.317 295263 DEBUG root [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659
 		// 62c38230485b4794a8eedece5dac9192 - - -] get WITH uri: https://10.216.177.8:443/mgmt/tm/sys/folder/~CORE_62c38230485b4794a8eedece5dac9192 AND
 		// suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257
-		"rest_call_bigip": `%{DATETIME:call_bigip_time} .* \[%{REQID:req_id} .*\] get WITH uri: .*icontrol/session.py.*`,
+		"rest_call_bigip": MatchHandler{
+			Pattern:  `%{DATETIME:call_bigip_time} .* \[%{REQID:req_id} .*\] get WITH uri: .*icontrol/session.py.*`,
+			Function: Set,
+		},
 
 		// 2020-10-05 10:19:18.411 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc
 		// [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - - -]
 		// f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc.LBaaSv2PluginRPC method update_loadbalancer_status called with arguments
 		// (u'e2d277f7-eca2-46a4-bf2c-655856fd8733', 'ACTIVE', 'ONLINE', u'JL-B01-POD1-CORE-LB-7') {} wrapper
 		// /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
-		"update_loadbalancer_status": `%{DATETIME:update_status_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:req_id} .*\].* ` +
-			`method update_loadbalancer_status called with arguments.*`,
+		"update_loadbalancer_status": MatchHandler{
+			Pattern: `%{DATETIME:update_status_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:req_id} .*\].* ` +
+				`method update_loadbalancer_status called with arguments.*`,
+			Function: Set,
+		},
 
 		// "test_basic_pattern":
 		// 	`%{LBTYPE:object_type}`,
@@ -222,9 +247,16 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 		return
 	}
 
+	if err = pLBaaSv2[k].Function(values); err != nil {
+		logger.Printf("Error happens while parsing %s: %s\n", text, err.Error())
+	}
+}
+
+// Set values into ResultMap
+func Set(values map[string]string) error {
 	rltLock.Lock()
 	if _, ok := values["req_id"]; !ok {
-		logger.Fatalf("Abnormal thing happens. No req_id matched: pattern key: %s, log: %s\n", k, text)
+		return fmt.Errorf("Abnormal thing happens. No req_id matched in log")
 	}
 
 	reqID := values["req_id"]
@@ -235,6 +267,8 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 		ResultMap[reqID][k] = v
 	}
 	rltLock.Unlock()
+
+	return nil
 }
 
 // Read lines from f to linesFIFO
@@ -324,7 +358,7 @@ func MakeGrok() (*grok.Grok, error) {
 		pattern[k] = v
 	}
 	for k, v := range pLBaaSv2 {
-		pattern[k] = v
+		pattern[k] = v.Pattern
 	}
 
 	g, e := grok.New(grok.Config{
@@ -344,12 +378,13 @@ func HandleArguments(logpaths []string, outputFilePath string) ([]*os.File, erro
 	dir, err := filepath.Abs(filepath.Dir(outputFilePath))
 	if err != nil {
 		return nil, err
-	} else {
-		_, err := os.Stat(dir)
-		if os.IsNotExist(err) {
-			return nil, err
-		}
 	}
+
+	_, err = os.Stat(dir)
+	if os.IsNotExist(err) {
+		return nil, err
+	}
+
 	_, err = os.Stat(outputFilePath)
 	if err == nil {
 		return nil, fmt.Errorf("file %s already exists", outputFilePath)

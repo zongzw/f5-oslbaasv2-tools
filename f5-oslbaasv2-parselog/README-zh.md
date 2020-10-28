@@ -7,7 +7,32 @@
 
 ## 前置条件
 
-使用此命令分析log之前需要确认日志级别DEBUG被启用，`([DEFAULT] debug = True`，此配置在`/etc/neutron/services/f5/f5-openstack-agent.ini`。否则部分有用信息无法提取到。但这不会造成此命令执行异常或失败。
+使用此命令分析log之前需要确认日志级别DEBUG被启用:
+
+* Neutron server 配置, 通常为 `/etc/neutron/neutron.conf`:
+
+  ```
+  #
+  # From oslo.log
+  #
+
+  # If set to true, the logging level will be set to DEBUG instead of the default
+  # INFO level. (boolean value)
+  # Note: This option can be changed without restarting.
+  debug = true
+  ```
+
+* Agent 配置, 通常为  `/etc/neutron/services/f5/f5-openstack-agent.ini`: 
+
+  ```
+  [DEFAULT]
+  # Show debugging output in log (sets DEBUG log level output).
+  debug = True
+  ```
+
+否则部分有用信息无法提取到。
+
+但这不会造成此命令执行异常或失败。
 
 ## 使用说明
 
