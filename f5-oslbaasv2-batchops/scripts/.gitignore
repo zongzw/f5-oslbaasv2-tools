@@ -1,2 +1,2 @@
-openrc
-create-lbaasv2-objects.sh-*
+openrc*
+batchops.conf-*

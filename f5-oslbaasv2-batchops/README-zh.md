@@ -14,7 +14,7 @@
   
   `--check-lb <lb id or name>` 指定了所所操作资源所属的loadbalancer。
 * **\<neutron command>**: neutron 命令模板部分（可能包含变量声明）。此部分的语法和neutron原生命令（`neutron lbaas-*`）相同。但需要注意以下几点：
-  * 为了方便使用，neutron命令的前缀部分`neutron lbaas-` 请不要包含在其中，例如： `neutron lbaas-loadbalancer-list`, 在使用中，只需要`loadbalancer-list`。
+  * 为了方便使用，neutron命令的前缀部分`neutron ` 请不要包含在其中，例如： `neutron lbaas-loadbalancer-list`, 在使用中，只需要`lbaas-loadbalancer-list`。
   * 使用`%{variable-name}` 作为变量声明，这个声明会在实际执行过程中替换成具体的变量值，命令模板因此被替换成实际neutron命令执行多次。
 * **\[variable-definition]**: 与上述 `variable-name`相对应，这是变量定义部分。`variable-definition`包含两部分：`variable-name` 和 `values`，格式和解析结果如下：
   * `x:1-5`: x 解析为 [1 2 3 4 5]
@@ -34,7 +34,7 @@ Usage:
 Example:
 
     ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --concurrency --output-filepath /dev/stdout \
-    -- loadbalancer-create --name lb%{x} %{y} \
+    -- lbaas-loadbalancer-create --name lb%{x} %{y} \
     ++ x:1-5 y:private-subnet,public-subnet
 
 Command Arguments:
@@ -50,13 +50,13 @@ Command Arguments:
 按照如下方式执行此命令:
 
 ```
-$ ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --output-filepath rlt.json -- loadbalancer-show lb-%{x} ++ x:1-2
+$ ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --output-filepath rlt.json -- lbaas-loadbalancer-show lb-%{x} ++ x:1-2
 ```
 响应日志为:
 
 ```
 2020/10/25 12:35:09 output to: rlt.json
-2020/10/25 12:35:09 Command template: |loadbalancer-show lb-%{x}
+2020/10/25 12:35:09 Command template: |lbaas-loadbalancer-show lb-%{x}
 2020/10/25 12:35:09 variables parsed as
 2020/10/25 12:35:09          x: [1 2]
 2020/10/25 12:35:09 neutron command: /Users/zong/PythonEnvs/openstack-client/bin/neutron

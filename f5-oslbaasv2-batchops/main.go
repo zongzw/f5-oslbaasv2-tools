@@ -54,7 +54,7 @@ var (
 	outputFile *os.File
 
 	cmdResults = []CommandResult{}
-	cmdPrefix  = "neutron lbaas-"
+	cmdPrefix  = "neutron "
 )
 
 func main() {
