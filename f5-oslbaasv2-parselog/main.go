@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -55,12 +57,13 @@ type RequestContext struct {
 	TmpResponseCode string `json:"bigip_response_code"`
 
 	// Calculated data
-	DurationNeutronDriver     time.Duration
-	DurationDriverRPC         time.Duration
-	DurationRPCAgent          time.Duration
-	DurationAgentUpdateStatus time.Duration
-	BigipRequestCount         map[string]int `json:"bigip_request_account"`
-	BigipDurationTotal        map[string]int `json:"bigip_duration_total"`
+	DurationNeutronDriver     time.Duration  `json:"duration_neutron_driver"`
+	DurationDriverRPC         time.Duration  `json:"duration_driver_rpc"`
+	DurationRPCAgent          time.Duration  `json:"duration_rpc_agent"`
+	DurationAgentUpdateStatus time.Duration  `json:"duration_agent_updatestatus"`
+	DurationOperationTotal    time.Duration  `json:"duration_total"`
+	BigipRequestCount         map[string]int `json:"bigip_request_count"`
+	BigipDurationTotal        time.Duration  `json:"bigip_duration_total"`
 }
 
 var (
@@ -88,7 +91,7 @@ var (
 		"neutron_api_v2_base": MatchHandler{
 			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} .*\] ` +
 				`Request body: %{JSON:request_body} prepare_request_body .*$`,
-			Function: DefaultSet,
+			Function: nil,
 		},
 
 		// 05neu-core/server.log-1005:2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2
@@ -99,7 +102,7 @@ var (
 		"call_f5driver": MatchHandler{
 			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
-			Function: DefaultSet,
+			Function: nil,
 		},
 
 		// 2020-10-05 10:20:21.924 117825 DEBUG f5lbaasdriver.v2.bigip.agent_scheduler
@@ -124,7 +127,7 @@ var (
 			Pattern: `%{DATETIME:time_rpc} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
 				`.*? 'id': '%{UUID:object_id}'.*`,
-			Function: DefaultSet,
+			Function: nil,
 		},
 
 		// 2020-10-05 10:19:16.315 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager
@@ -136,22 +139,22 @@ var (
 			Pattern: `%{DATETIME:time_f5agent} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD:agent_module} \[%{REQID:request_id} .*\] ` +
 				`f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
 				`called with arguments .*`,
-			Function: DefaultSet,
+			Function: nil,
 		},
 
 		// 2020-10-05 10:19:16.317 295263 DEBUG root [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659
 		// 62c38230485b4794a8eedece5dac9192 - - -] get WITH uri: https://10.216.177.8:443/mgmt/tm/sys/folder/~CORE_62c38230485b4794a8eedece5dac9192 AND
 		// suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257
 		"rest_call_bigip": MatchHandler{
-			Pattern:  `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:access_bigip_method} WITH uri: .*icontrol/session.py.*`,
-			Function: DefaultSet, //SetAccessBIP,
+			Pattern:  `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:bigip_request_method} WITH uri: .*icontrol/session.py.*`,
+			Function: SetAccessBIP,
 		},
 
 		// 2020-10-28 16:17:55.280 151202 DEBUG root [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf
 		// 94f2338bf383405db151c4784c0e358c - - -] RESPONSE::STATUS: 200 Content-Type: application/json; charset=UTF-8 Content-Encoding: None
 		"rest_bigip_response": MatchHandler{
 			Pattern:  `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
-			Function: DefaultSet, //SetAccessBIP,
+			Function: SetBIPResponse,
 		},
 
 		// 2020-10-05 10:19:18.411 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc
@@ -162,7 +165,7 @@ var (
 		"update_loadbalancer_status": MatchHandler{
 			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} .*\].* ` +
 				`method update_loadbalancer_status called with arguments.*`,
-			Function: DefaultSet,
+			Function: nil,
 		},
 
 		// "test_basic_pattern":
@@ -175,7 +178,7 @@ var (
 	// ResultMap The final result.
 	// key: request id.
 	// value: map of captured variable and values.
-	ResultMap = map[string]map[string]string{}
+	ResultMap = map[string]*RequestContext{}
 
 	rltLock = &sync.Mutex{}
 	bufLock = &sync.Mutex{}
@@ -290,28 +293,79 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 		return
 	}
 
-	if err = pLBaaSv2[k].Function(values); err != nil {
-		logger.Printf("Error happens while parsing %s: %s\n", text, err.Error())
+	if _, ok := values["request_id"]; !ok {
+		logger.Fatalf("Abnormal thing happens. No request_id matched in log")
 	}
+
+	if err = DefaultSet(values); err != nil {
+		logger.Printf("Error setting value %s: %s\n", values, err.Error())
+	}
+
+	setFunc := pLBaaSv2[k].Function
+	if setFunc != nil {
+		if err = setFunc(values); err != nil {
+			logger.Printf("Error customizing setting %s: %s\n", values, err.Error())
+		}
+	}
+}
+
+// SetAccessBIP additional setting to accessing bigip
+func SetAccessBIP(values map[string]string) error {
+	reqID := values["request_id"]
+
+	rltLock.Lock()
+	defer rltLock.Unlock()
+
+	rc := ResultMap[reqID]
+	m := rc.TmpBigipMethod
+	rc.BigipRequestCount[m]++
+
+	if rc.TmpResponseTime != "" {
+		t := FKTheTime(rc.TmpResponseTime)
+		rc.BigipDurationTotal = rc.BigipDurationTotal + t.Sub(FKTheTime(rc.TmpBigipTime))
+		rc.TmpResponseTime = ""
+		rc.TmpBigipTime = ""
+	}
+
+	return nil
+}
+
+// SetBIPResponse additional setting for bigip response
+func SetBIPResponse(values map[string]string) error {
+	reqID := values["request_id"]
+
+	rltLock.Lock()
+	defer rltLock.Unlock()
+
+	rc := ResultMap[reqID]
+	if rc.TmpBigipTime != "" {
+		t := FKTheTime(rc.TmpBigipTime)
+		rc.BigipDurationTotal = rc.BigipDurationTotal + FKTheTime(rc.TmpResponseTime).Sub(t)
+		rc.TmpResponseTime = ""
+		rc.TmpBigipTime = ""
+	}
+
+	return nil
 }
 
 // DefaultSet set values into ResultMap
 func DefaultSet(values map[string]string) error {
 
-	if _, ok := values["request_id"]; !ok {
-		return fmt.Errorf("Abnormal thing happens. No request_id matched in log")
-	}
-
 	rltLock.Lock()
+	defer rltLock.Unlock()
 
 	reqID := values["request_id"]
 	if _, ok := ResultMap[reqID]; !ok {
-		ResultMap[reqID] = map[string]string{}
+		ResultMap[reqID] = &RequestContext{
+			BigipRequestCount: map[string]int{},
+		}
 	}
-	for k, v := range values {
-		ResultMap[reqID][k] = v
+
+	bValues, _ := json.Marshal(values)
+	rc := ResultMap[reqID]
+	if err := json.Unmarshal(bValues, rc); err != nil {
+		return err
 	}
-	rltLock.Unlock()
 
 	return nil
 }
@@ -365,10 +419,16 @@ func OutputResult(filepath string) {
 	}
 	defer fw.Close()
 
-	titleLine := []string{
-		"request_id", "object_id", "object_type", "operation_type", "request_body",
-		"time_neutron_api", "time_f5driver", "time_f5agent", "time_f5agent", "bigip_request_time", "time_update_status",
-		"dur_neu_drv", "dur_drv_rpc", "dur_rpc_agt", "dur_agt_upd", "total",
+	// titleLine := []string{
+	// 	"request_id", "object_id", "object_type", "operation_type", "request_body",
+	// 	"time_neutron_api", "time_f5driver", "time_f5agent", "time_f5agent", "bigip_request_time", "time_update_status",
+	// 	"dur_neu_drv", "dur_drv_rpc", "dur_rpc_agt", "dur_agt_upd", "total",
+	// }
+
+	titleLine := []string{}
+	t := reflect.TypeOf(RequestContext{})
+	for i := 0; i < t.NumField(); i++ {
+		titleLine = append(titleLine, t.Field(i).Tag.Get("json"))
 	}
 
 	_, e = fw.WriteString(strings.Join(titleLine, ",") + "\n")
@@ -376,17 +436,29 @@ func OutputResult(filepath string) {
 		logger.Fatal(e)
 	}
 
-	for _, v := range ResultMap {
-		a := []string{}
-		for _, n := range titleLine {
-			if strings.HasSuffix(n, "_time") {
-				a = append(a, fmt.Sprintf("\"T%s\"", v[n]))
-			} else {
-				a = append(a, fmt.Sprintf("\"%s\"", v[n]))
+	for _, pRC := range ResultMap {
+		v := reflect.ValueOf(*pRC)
+		dataLine := []string{}
+		for i := 0; i < v.NumField(); i++ {
+			f := v.Field(i)
+			switch f.Kind() {
+			case reflect.String:
+				dataLine = append(dataLine, fmt.Sprintf("\"%s\"", f.String()))
+			case reflect.Int:
+				dataLine = append(dataLine, fmt.Sprintf("%d", f.Int()))
+			case reflect.Map: // support only map[string]int
+				ks := f.MapKeys()
+				dl := ""
+				for _, k := range ks {
+					dl = dl + fmt.Sprintf("%s:%d ", k.String(), f.MapIndex(k).Int())
+				}
+				dataLine = append(dataLine, dl)
+			default:
+				dataLine = append(dataLine, fmt.Sprintf("%s", f.Interface()))
 			}
-
 		}
-		line := strings.Join(a, ",") + "\n"
+
+		line := strings.Join(dataLine, ",") + "\n"
 
 		_, e := fw.WriteString(line)
 		if e != nil {
@@ -516,18 +588,18 @@ func FKTheTime(datm string) time.Time {
 
 // CalculateDuration calculate the duration.
 func CalculateDuration() {
-	for _, r := range ResultMap {
-		tNeutron := FKTheTime(r["time_neutron_api"])
-		tDriver := FKTheTime(r["time_f5driver"])
-		tMQ := FKTheTime(r["time_f5agent"])
-		tAgent := FKTheTime(r["time_f5agent"])
-		tUpdate := FKTheTime(r["time_update_status"])
-		// tBIGIP := FKTheTime(r["bigip_request_time"])
-		r["dur_neu_drv"] = fmt.Sprintf("%v", tDriver.Sub(tNeutron))
-		r["dur_drv_rpc"] = fmt.Sprintf("%v", tMQ.Sub(tDriver))
-		r["dur_rpc_agt"] = fmt.Sprintf("%v", tAgent.Sub(tMQ))
-		r["dur_agt_upd"] = fmt.Sprintf("%v", tUpdate.Sub(tAgent))
-		r["total"] = fmt.Sprintf("%v", tUpdate.Sub(tNeutron))
+	for _, rc := range ResultMap {
+		tNeutron := FKTheTime(rc.NeutronAPITime)
+		tDriver := FKTheTime(rc.F5DriverTime)
+		tRPC := FKTheTime(rc.RPCTime)
+		tAgent := FKTheTime(rc.F5AgentTime)
+		tUpdate := FKTheTime(rc.UpdateStatusTime)
+
+		rc.DurationNeutronDriver = tDriver.Sub(tNeutron)
+		rc.DurationDriverRPC = tRPC.Sub(tDriver)
+		rc.DurationRPCAgent = tAgent.Sub(tRPC)
+		rc.DurationAgentUpdateStatus = tUpdate.Sub(tAgent)
+		rc.DurationOperationTotal = tUpdate.Sub(tNeutron)
 	}
 }
 
