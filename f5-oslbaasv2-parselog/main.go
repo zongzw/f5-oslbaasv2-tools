@@ -28,19 +28,55 @@ type MatchHandler struct {
 	Function func(values map[string]string) error
 }
 
+// RequestContext request context parsed from log
+type RequestContext struct {
+	RequestID string `json:"request_id"`
+
+	// key information parsed from log
+	ObjectID      string `json:"object_id"`
+	AgentModule   string `json:"agent_module"`
+	RequestBody   string `json:"request_body"`
+	ObjectType    string `json:"object_type"`
+	OperationType string `json:"operation_type"`
+
+	// phrase timestamp
+	NeutronAPITime   string `json:"time_neutron_api"`
+	F5DriverTime     string `json:"time_f5driver"`
+	RPCTime          string `json:"time_rpc"`
+	F5AgentTime      string `json:"time_f5agent"`
+	UpdateStatusTime string `json:"time_update_status"`
+
+	// access dbv2  analytics metrics
+
+	// access bigip analytics metrics
+	TmpBigipTime    string `json:"bigip_request_time"`
+	TmpResponseTime string `json:"bigip_response_time"`
+	TmpBigipMethod  string `json:"bigip_request_method"`
+	TmpResponseCode string `json:"bigip_response_code"`
+
+	// Calculated data
+	DurationNeutronDriver     time.Duration
+	DurationDriverRPC         time.Duration
+	DurationRPCAgent          time.Duration
+	DurationAgentUpdateStatus time.Duration
+	BigipRequestCount         map[string]int `json:"bigip_request_account"`
+	BigipDurationTotal        map[string]int `json:"bigip_duration_total"`
+}
+
 var (
 	logger = log.New(os.Stdout, "", log.LstdFlags)
 
 	pBasicFields = map[string]string{
-		"UUID":       `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
-		"REQID":      `req-%{UUID}`,                               // req-8cadad28-8315-45ca-818c-6a229dfb73e1
-		"DATETIME":   `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
-		"MD5":        `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
-		"JSON":       `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
-		"LBTYPE":     `(LoadBalancer|Listener|Pool|Member|HealthMonitor)`,
-		"LBTYPESTR":  `(loadbalancer|listener|pool|member|health_monitor)`,
-		"ACTION":     `(create|update|delete)`,
-		"SIMPLENAME": `\w+`, // [0-9a-zA-Z_] strings
+		"UUID":      `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
+		"REQID":     `req-%{UUID}`,                               // req-8cadad28-8315-45ca-818c-6a229dfb73e1
+		"DATETIME":  `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
+		"MD5":       `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
+		"JSON":      `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
+		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy)`,
+		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy)`,
+		"ACTION":    `(create|update|delete)`,
+		"WORD":      `\w+`, // [0-9a-zA-Z_] strings
+		"NUM":       `\d+`, // 202 400 200
 	}
 
 	pLBaaSv2 = map[string]MatchHandler{
@@ -50,9 +86,9 @@ var (
 		// {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		// prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713
 		"neutron_api_v2_base": MatchHandler{
-			Pattern: `%{DATETIME:neutron_api_time} .* neutron.api.v2.base \[%{REQID:req_id} .*\] ` +
+			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} .*\] ` +
 				`Request body: %{JSON:request_body} prepare_request_body .*$`,
-			Function: Set,
+			Function: DefaultSet,
 		},
 
 		// 05neu-core/server.log-1005:2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2
@@ -61,9 +97,9 @@ var (
 		// <neutron_lbaas.services.loadbalancer.data_models.LoadBalancer object at 0xdb44250>) {}
 		// wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5driver": MatchHandler{
-			Pattern: `%{DATETIME:call_f5driver_time} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:req_id} .*\] ` +
+			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
-			Function: Set,
+			Function: DefaultSet,
 		},
 
 		// 2020-10-05 10:20:21.924 117825 DEBUG f5lbaasdriver.v2.bigip.agent_scheduler
@@ -85,10 +121,10 @@ var (
 		// 'OFFLINE', 'name': 'JL-B01-POD1-CORE-LB-7'}}, u'POD1_CORE3') {} wrapper /usr/lib/python2.7/site-packages/oslo_l
 		// og/helpers.py:66
 		"rpc_f5agent": MatchHandler{
-			Pattern: `%{DATETIME:rpc_f5agent_time} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:req_id} .*\] ` +
+			Pattern: `%{DATETIME:time_rpc} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
 				`.*? 'id': '%{UUID:object_id}'.*`,
-			Function: Set,
+			Function: DefaultSet,
 		},
 
 		// 2020-10-05 10:19:16.315 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager
@@ -97,18 +133,25 @@ var (
 		// ...
 		// 7'}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5agent": MatchHandler{
-			Pattern: `%{DATETIME:call_f5agent_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{SIMPLENAME:agent_module} \[%{REQID:req_id} .*\] ` +
-				`f5_openstack_agent.lbaasv2.drivers.bigip.%{SIMPLENAME}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
+			Pattern: `%{DATETIME:time_f5agent} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD:agent_module} \[%{REQID:request_id} .*\] ` +
+				`f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
 				`called with arguments .*`,
-			Function: Set,
+			Function: DefaultSet,
 		},
 
 		// 2020-10-05 10:19:16.317 295263 DEBUG root [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659
 		// 62c38230485b4794a8eedece5dac9192 - - -] get WITH uri: https://10.216.177.8:443/mgmt/tm/sys/folder/~CORE_62c38230485b4794a8eedece5dac9192 AND
 		// suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257
 		"rest_call_bigip": MatchHandler{
-			Pattern:  `%{DATETIME:call_bigip_time} .* \[%{REQID:req_id} .*\] get WITH uri: .*icontrol/session.py.*`,
-			Function: Set,
+			Pattern:  `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:access_bigip_method} WITH uri: .*icontrol/session.py.*`,
+			Function: DefaultSet, //SetAccessBIP,
+		},
+
+		// 2020-10-28 16:17:55.280 151202 DEBUG root [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf
+		// 94f2338bf383405db151c4784c0e358c - - -] RESPONSE::STATUS: 200 Content-Type: application/json; charset=UTF-8 Content-Encoding: None
+		"rest_bigip_response": MatchHandler{
+			Pattern:  `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
+			Function: DefaultSet, //SetAccessBIP,
 		},
 
 		// 2020-10-05 10:19:18.411 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc
@@ -117,9 +160,9 @@ var (
 		// (u'e2d277f7-eca2-46a4-bf2c-655856fd8733', 'ACTIVE', 'ONLINE', u'JL-B01-POD1-CORE-LB-7') {} wrapper
 		// /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"update_loadbalancer_status": MatchHandler{
-			Pattern: `%{DATETIME:update_status_time} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:req_id} .*\].* ` +
+			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} .*\].* ` +
 				`method update_loadbalancer_status called with arguments.*`,
-			Function: Set,
+			Function: DefaultSet,
 		},
 
 		// "test_basic_pattern":
@@ -252,14 +295,16 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 	}
 }
 
-// Set values into ResultMap
-func Set(values map[string]string) error {
-	rltLock.Lock()
-	if _, ok := values["req_id"]; !ok {
-		return fmt.Errorf("Abnormal thing happens. No req_id matched in log")
+// DefaultSet set values into ResultMap
+func DefaultSet(values map[string]string) error {
+
+	if _, ok := values["request_id"]; !ok {
+		return fmt.Errorf("Abnormal thing happens. No request_id matched in log")
 	}
 
-	reqID := values["req_id"]
+	rltLock.Lock()
+
+	reqID := values["request_id"]
 	if _, ok := ResultMap[reqID]; !ok {
 		ResultMap[reqID] = map[string]string{}
 	}
@@ -321,8 +366,8 @@ func OutputResult(filepath string) {
 	defer fw.Close()
 
 	titleLine := []string{
-		"req_id", "object_id", "object_type", "operation_type", "request_body",
-		"neutron_api_time", "call_f5driver_time", "rpc_f5agent_time", "call_f5agent_time", "call_bigip_time", "update_status_time",
+		"request_id", "object_id", "object_type", "operation_type", "request_body",
+		"time_neutron_api", "time_f5driver", "time_f5agent", "time_f5agent", "bigip_request_time", "time_update_status",
 		"dur_neu_drv", "dur_drv_rpc", "dur_rpc_agt", "dur_agt_upd", "total",
 	}
 
@@ -472,12 +517,12 @@ func FKTheTime(datm string) time.Time {
 // CalculateDuration calculate the duration.
 func CalculateDuration() {
 	for _, r := range ResultMap {
-		tNeutron := FKTheTime(r["neutron_api_time"])
-		tDriver := FKTheTime(r["call_f5driver_time"])
-		tMQ := FKTheTime(r["rpc_f5agent_time"])
-		tAgent := FKTheTime(r["call_f5agent_time"])
-		tUpdate := FKTheTime(r["update_status_time"])
-		// tBIGIP := FKTheTime(r["call_bigip_time"])
+		tNeutron := FKTheTime(r["time_neutron_api"])
+		tDriver := FKTheTime(r["time_f5driver"])
+		tMQ := FKTheTime(r["time_f5agent"])
+		tAgent := FKTheTime(r["time_f5agent"])
+		tUpdate := FKTheTime(r["time_update_status"])
+		// tBIGIP := FKTheTime(r["bigip_request_time"])
 		r["dur_neu_drv"] = fmt.Sprintf("%v", tDriver.Sub(tNeutron))
 		r["dur_drv_rpc"] = fmt.Sprintf("%v", tMQ.Sub(tDriver))
 		r["dur_rpc_agt"] = fmt.Sprintf("%v", tAgent.Sub(tMQ))
@@ -577,8 +622,15 @@ func TestCases() map[string][]string {
 		},
 
 		"rest_call_bigip": []string{
-			// loadbalancer
+			// get
 			`2020-10-05 10:19:16.317 295263 DEBUG root [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - - -] get WITH uri: https://10.216.177.8:443/mgmt/tm/sys/folder/~CORE_62c38230485b4794a8eedece5dac9192 AND suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257`,
+
+			// post
+			`2020-10-28 16:17:55.281 151202 DEBUG root [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - - -] post WITH uri: https://10.250.2.211:443/mgmt/tm/ltm/pool/~CORE_94f2338bf383405db151c4784c0e358c~CORE_b9453b10-fe39-4667-88ea-172ba8eac39c/members/ AND suffix:  AND kwargs: {'json': {'partition': u'CORE_94f2338bf383405db151c4784c0e358c', 'session': 'user-enabled', 'ratio': 1, 'name': u'4.10.10.15:80', 'address': u'4.10.10.15'}} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257`,
+		},
+
+		"rest_bigip_response": []string{
+			`2020-10-28 16:17:55.280 151202 DEBUG root [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - - -] RESPONSE::STATUS: 200 Content-Type: application/json; charset=UTF-8 Content-Encoding: None`,
 		},
 
 		"update_loadbalancer_status": []string{
