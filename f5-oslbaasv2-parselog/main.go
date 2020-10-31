@@ -49,6 +49,8 @@ type RequestContext struct {
 	UpdateStatusTime string `json:"time_update_status"`
 
 	// access dbv2  analytics metrics
+	TmpDBBeginTime string `json:"time_db_begin"`
+	TmpDBEndTime   string `json:"time_db_end"`
 
 	// access bigip analytics metrics
 	TmpBigipTime    string `json:"bigip_request_time"`
@@ -397,7 +399,7 @@ func Read(f *os.File) {
 		bufLock.Unlock()
 
 		if len(linesFIFO) > linesFIFOSize {
-			time.Sleep(time.Duration(5) * time.Microsecond)
+			time.Sleep(time.Duration(50) * time.Microsecond)
 		}
 	}
 

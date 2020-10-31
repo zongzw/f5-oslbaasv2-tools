@@ -1,7 +1,7 @@
 {
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid: "830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -10,19 +10,39 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/f5-oslbaasv2-batchops",
+            // "env": {
+            //     "OS_PROJECT_DOMAIN_ID": "default",
+            //     "OS_REGION_NAME": "RegionOne",
+            //     "OS_USER_DOMAIN_ID": "default",
+            //     "OS_PROJECT_NAME": "admin",
+            //     "OS_IDENTITY_API_VERSION": "3",
+            //     "OS_PASSWORD": "password",
+            //     "OS_AUTH_TYPE": "password",
+            //     "OS_AUTH_URL": "http://10.145.72.60/identity",
+            //     "OS_USERNAME": "admin",
+            //     "OS_TENANT_NAME": "admin",
+            //     "OS_VOLUME_API_VERSION": "2",
+            //     "OS_CACERT": ""
+            // },
+            
             "env": {
-                "OS_PROJECT_DOMAIN_ID": "default",
-                "OS_REGION_NAME": "RegionOne",
-                "OS_USER_DOMAIN_ID": "default",
+                "OS_BAREMETAL_API_VERSION": "1.34",
+                "OS_IMAGE_API_VERSION": "2",
                 "OS_PROJECT_NAME": "admin",
-                "OS_IDENTITY_API_VERSION": "3",
-                "OS_PASSWORD": "password",
+                "OS_PASSWORD": "fPGXnUptccRWGyMKGAUjcWXJs",
                 "OS_AUTH_TYPE": "password",
-                "OS_AUTH_URL": "http://10.145.72.60/identity",
+                "OS_AUTH_URL": "http://10.250.23.52:5000/v2.0",
                 "OS_USERNAME": "admin",
-                "OS_TENANT_NAME": "admin",
-                "OS_VOLUME_API_VERSION": "2",
-                "OS_CACERT": ""
+                "OS_VOLUME_API_VERSION": "3",
+                "OS_NO_CACHE": "True",
+                "OS_CLOUDNAME": "overcloud",
+
+                "VIRTUALENVWRAPPER_SCRIPT": "/usr/local/bin/virtualenvwrapper.sh",
+                "VIRTUALENVWRAPPER_PROJECT_FILENAME": ".project",
+                "VIRTUALENVWRAPPER_HOOK_DIR": "/Users/zong/PythonEnvs",
+                "VIRTUALENVWRAPPER_WORKON_CD": "1",
+
+                "PATH": "/Users/zong/PythonEnvs/openstack-client/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/VMware Fusion.app/Contents/Public:/usr/local/go/bin:/opt/X11/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/zong/GitRepos/zongzw/zongzw-devops/ops-tools/commands:/usr/local/opt/inetutils/libexec/gnubin"
             },
             // "args": [
             //     "--",
@@ -35,19 +55,33 @@
             //     "--output-filepath", "output/test.json",
             //     "--", "loadbalancer-list"
             // ]
+            // "args": [
+            //     "--output-filepath",
+            //     "output/test.json",
+            //     "--check-lb",
+            //     "lb%{index}",
+            //     "--",
+            //     "loadbalancer-create",
+            //     "--name",
+            //     "lb%{index}-%{subnet}",
+            //     "%{subnet}",
+            //     "++",
+            //     "index:1-5",
+            //     "subnet:private-subnet,public-subnet"
+            // ]
             "args": [
                 "--output-filepath",
                 "output/test.json",
                 "--check-lb",
-                "lb%{index}",
+                "lb%{index}-%{subnet}",
                 "--",
-                "loadbalancer-create",
+                "lbaas-loadbalancer-create",
                 "--name",
                 "lb%{index}-%{subnet}",
                 "%{subnet}",
                 "++",
-                "index:1-5",
-                "subnet:private-subnet,public-subnet"
+                "index:41-42",
+                "subnet:ext-net"
             ]
         },
         {

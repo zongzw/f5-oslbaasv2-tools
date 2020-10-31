@@ -28,17 +28,20 @@ type NeutronResponse struct {
 	ProvisioningStatus string `json:"provisioning_status"`
 }
 
-// CommandResult saved command analytics data.
-type CommandResult struct {
-	Seq             int                    `json:"seqnum"`
-	Command         string                 `json:"command"`
-	Out             map[string]interface{} `json:"output"`
-	Err             string                 `json:"error"`
-	ExitCode        int                    `json:"exitcode"`
-	CmdDuration     time.Duration          `json:"cmd_duration"`
-	CheckedResult   string                 `json:"done_status"`
-	CheckedDuration time.Duration          `json:"done_duration"`
-	CheckedLB       string                 `json:"done_loadbalancer"`
+// CommandContext saved command information and analytics data.
+type CommandContext struct {
+	Seq         int           `json:"seqnum"`
+	Command     string        `json:"command"`
+	RawOut      string        `json:"output"`
+	Err         string        `json:"error"`
+	ExitCode    int           `json:"exitcode"`
+	CmdDuration time.Duration `json:"cmd_duration"`
+	Check       struct {
+		Result   string          `json:"check_status"`
+		Duration time.Duration   `json:"check_duration"`
+		LBIDName string          `json:"check_loadbalancer"`
+		ShowResp NeutronResponse `json:"check_lb_result"`
+	} `json:"check"`
 }
 
 var (
@@ -53,7 +56,7 @@ var (
 	checkLB    string
 	outputFile *os.File
 
-	cmdResults = []CommandResult{}
+	cmdResults = []CommandContext{}
 	cmdPrefix  = "neutron "
 )
 
@@ -64,7 +67,7 @@ func main() {
 	if output != "/dev/stdout" {
 		of, e := os.OpenFile(output, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
 		if e != nil {
-			logger.Fatalf("Failed to open file %s for writing.\n", e.Error())
+			logger.Fatalf("Failed to open file %s for writing.", e.Error())
 		}
 		outputFile = of
 		defer outputFile.Close()
@@ -79,16 +82,16 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	logger.Printf("neutron command: %s\n", neutron)
+	logger.Printf("neutron command: %s", neutron)
 
 	RunCmds()
 
 	jd, _ := json.MarshalIndent(cmdResults, "", "  ")
 	if output != "/dev/stdout" {
 		n, e := outputFile.WriteString(string(jd))
-		logger.Printf("Writen executions to file %s: data-len:%d\n", output, n)
+		logger.Printf("Writen executions to file %s: data-len:%d", output, n)
 		if e != nil {
-			logger.Fatalf("Error happens while writing: %s\n", e.Error())
+			logger.Fatalf("Error happens while writing: %s", e.Error())
 		}
 	} else {
 		fmt.Printf("%s\n", string(jd))
@@ -105,7 +108,7 @@ func PrintReport() {
 	fmt.Println()
 	for _, n := range cmdResults {
 		fmt.Printf("%d: %s | Exited: %d | Checked: %s | duration: %d ms\n",
-			n.Seq, n.Command, n.ExitCode, n.CheckedResult, n.CheckedDuration.Milliseconds())
+			n.Seq, n.Command, n.ExitCode, n.Check.Result, n.Check.Duration.Milliseconds())
 	}
 	fmt.Println()
 	fmt.Println("Failed Command List:")
@@ -123,90 +126,175 @@ func PrintReport() {
 func RunCmds() {
 	for i, n := range cmdList {
 		lbAndCmd := strings.Split(n, "|")
+
 		fullCmd := fmt.Sprintf("%s%s", cmdPrefix, lbAndCmd[1])
-		logger.Printf("Command(%d/%d): Start '%s'\n", i+1, len(cmdList), fullCmd)
 
-		cr := RunCommand(fullCmd)
-		cr.CheckedLB = lbAndCmd[0]
-		cr.Seq = i + 1
+		cmdctx := CommandContext{
+			Seq:     i + 1,
+			Command: fullCmd,
+		}
+		cmdctx.Check.LBIDName = lbAndCmd[0]
 
-		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms\n", cr.Seq, len(cmdList), cr.ExitCode, cr.CmdDuration.Milliseconds())
+		logger.Println()
+		logger.Printf("Command(%d/%d): Prepare to run '%s'", i+1, len(cmdList), fullCmd)
+		if err := WaitForLBToNotPending(&cmdctx); err != nil {
+			logger.Printf("Command(%d/%d): Not ready to run  this command: %s", i+1, len(cmdList), err.Error())
+			return
+		}
+
+		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), fullCmd)
+		RunCmd(&cmdctx)
+
+		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms",
+			cmdctx.Seq, len(cmdList), cmdctx.ExitCode, cmdctx.CmdDuration.Milliseconds())
 		time.Sleep(time.Duration(1) * time.Second)
 
 		// check the command execution.
-		if cr.ExitCode == 0 {
-			logger.Printf("Command(%d/%d): Checking Execution\n", cr.Seq, len(cmdList))
-			CheckLBStatus(&cr)
+		if cmdctx.ExitCode == 0 {
+			CheckLBStatus(&cmdctx)
 		} else {
-			logger.Printf("Command(%d/%d): Error output: %s\n", cr.Seq, len(cmdList), cr.Err)
+			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
 		}
-		cmdResults = append(cmdResults, cr)
+		cmdResults = append(cmdResults, cmdctx)
 	}
 }
 
+// WaitForLBToNotPending check the loadbalancer is not pending.
+func WaitForLBToNotPending(cmdctx *CommandContext) error {
+
+	logPrefix := fmt.Sprintf("Command(%d/%d):", cmdctx.Seq, len(cmdList))
+	args := strings.Split(cmdctx.Command, " ")
+	subcmd := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "lbaas-") {
+			subcmd = arg
+			break
+		}
+	}
+	subs := strings.Split(subcmd, "-")
+	resourceType, operation := subs[1], subs[2]
+	if operation == "show" || operation == "list" {
+		return nil
+	} else if resourceType == "loadbalancer" && operation == "create" {
+		return nil
+	}
+
+	logger.Printf("%s Check %s not pending", logPrefix, cmdctx.Check.LBIDName)
+
+	chkctx := CommandContext{
+		Command: fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName),
+	}
+
+	maxChkTries := 32
+	maxErrTries := 3
+	chkTried := 0
+	errTried := 0
+	for ; chkTried < maxChkTries; chkTried++ {
+		RunCmd(&chkctx)
+		if chkctx.ExitCode != 0 {
+			logger.Printf("%s Checking loadbalancer(%s) status failed: %s",
+				logPrefix, cmdctx.Check.LBIDName, chkctx.Err)
+			errTried++
+			if errTried >= maxErrTries {
+				return fmt.Errorf("Check loadbalancer %s status for %d times, last failure: %s",
+					cmdctx.Check.LBIDName, maxErrTries, chkctx.Err)
+			}
+		} else {
+			errTried = 0
+		}
+
+		var resp NeutronResponse
+		_ = json.Unmarshal([]byte(chkctx.RawOut), &resp)
+
+		logger.Printf("%s Checked loadbalancer %s status %s",
+			logPrefix, cmdctx.Check.LBIDName, resp.ProvisioningStatus)
+
+		if strings.HasPrefix(resp.ProvisioningStatus, "PENDING_") {
+			time.Sleep(time.Duration(1) * time.Second)
+			continue
+		} else {
+			return nil
+		}
+	}
+
+	if chkTried >= maxChkTries {
+		return fmt.Errorf("Tried %d times to get LB status, still PENDING", maxChkTries)
+	}
+
+	return fmt.Errorf("Error happens in WaitForLBToNotPending, should not reach here")
+}
+
 // CheckLBStatus check the loadbalancer status after a commmand execution.
-func CheckLBStatus(rlt *CommandResult) {
-	args := strings.Split(rlt.Command, " ")
-	subs := strings.Split(args[1], "-")
+func CheckLBStatus(cmdctx *CommandContext) {
+	args := strings.Split(cmdctx.Command, " ")
+	subcmd := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "lbaas-") {
+			subcmd = arg
+		}
+	}
+	subs := strings.Split(subcmd, "-")
 	resourceType, operation := subs[1], subs[2]
 
 	fs := time.Now()
 	if operation == "create" || operation == "update" || operation == "delete" {
-		if rlt.CheckedLB == "" {
-			rlt.CheckedResult = fmt.Sprintf("no loadbalancer appointed, no check to do.")
+		if cmdctx.Check.LBIDName == "" {
+			logger.Printf("Command(%d/%d): No loadbalancer appointed, no check to do.", cmdctx.Seq, len(cmdList))
+			cmdctx.Check.Result = fmt.Sprintf("No loadbalancer appointed, no check to do.")
 		} else if resourceType == "loadbalancer" && operation == "delete" {
-			rlt.CheckedResult = fmt.Sprintf("loadbalancer deleted, no check to do.")
+			logger.Printf("Command(%d/%d): Loadbalancer deleted, no check to do.", cmdctx.Seq, len(cmdList))
+			cmdctx.Check.Result = fmt.Sprintf("loadbalancer deleted, no check to do.")
 		} else {
-			checkCmd := fmt.Sprintf("neutron lbaas-loadbalancer-show %s", rlt.CheckedLB)
-
-			logger.Printf("Command(%d/%d): Check with command: '%s'\n", rlt.Seq, len(cmdList), checkCmd)
-
+			checkCmd := fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName)
+			logger.Printf("Command(%d/%d): Check with command: '%s'", cmdctx.Seq, len(cmdList), checkCmd)
+			chkctx := CommandContext{
+				Command: checkCmd,
+			}
 			maxTries := 32
 			tried := 0
 			for ; tried < maxTries; tried++ {
-				cr := RunCommand(checkCmd)
-				if cr.ExitCode != 0 {
-					rlt.CheckedResult = fmt.Sprintf("Failed to check execution of %s: %s", rlt.Command, cr.Err)
+				RunCmd(&chkctx)
+				if chkctx.ExitCode != 0 {
+					logger.Printf("Command(%d/%d): Checked loadbalancer %s Failed: %s",
+						cmdctx.Seq, len(cmdList), cmdctx.Check.LBIDName, chkctx.Err)
+					cmdctx.Check.Result = fmt.Sprintf("Failed to check execution of %s: %s", cmdctx.Command, chkctx.Err)
 					break
 				}
 
-				var stat NeutronResponse
-				b, _ := json.Marshal(cr.Out)
-				_ = json.Unmarshal(b, &stat)
-				if strings.HasPrefix(stat.ProvisioningStatus, "PENDING_") {
+				_ = json.Unmarshal([]byte(chkctx.RawOut), &cmdctx.Check.ShowResp)
+				resp := cmdctx.Check.ShowResp
+				logger.Printf("Command(%d/%d): Checked loadbalancer %s is %s",
+					cmdctx.Seq, len(cmdList), cmdctx.Check.LBIDName, resp.ProvisioningStatus)
+				if strings.HasPrefix(resp.ProvisioningStatus, "PENDING_") {
+					time.Sleep(time.Duration(1) * time.Second)
 					continue
 				} else {
-					rlt.CheckedResult = fmt.Sprintf("LB: %s %s", stat.ID, stat.ProvisioningStatus)
+					cmdctx.Check.Result = fmt.Sprintf("LB: %s %s", resp.ID, resp.ProvisioningStatus)
 					break
 				}
 			}
 			if tried >= maxTries {
-				rlt.CheckedResult = fmt.Sprintf("LB: %s left PENDING", rlt.CheckedLB)
+				cmdctx.Check.Result = fmt.Sprintf("LB: %s left PENDING", cmdctx.Check.LBIDName)
 			}
 		}
 	} else { // 'show' 'list' no need to check
-		rlt.CheckedResult = fmt.Sprintf("%s done", args[1])
+		cmdctx.Check.Result = fmt.Sprintf("%s done", subcmd)
 	}
 	fe := time.Now()
 
-	rlt.CheckedDuration = fe.Sub(fs) + rlt.CmdDuration
-	logger.Printf("Command(%d/%d): Checked time: %d ms\n", rlt.Seq, len(cmdList), rlt.CheckedDuration.Milliseconds())
+	cmdctx.Check.Duration = fe.Sub(fs) + cmdctx.CmdDuration
+	logger.Printf("Command(%d/%d): Checked time: %d ms", cmdctx.Seq, len(cmdList), cmdctx.Check.Duration.Milliseconds())
 }
 
-// RunCommand run the command and fill CommandResult body
-func RunCommand(cmd string) CommandResult {
-	cmdArgs := strings.Split(cmd, " ")
+// RunCmd run the command and fill CommandResult body
+func RunCmd(cmdctx *CommandContext) {
+	cmdArgs := strings.Split(cmdctx.Command, " ")
 	cmdArgs = append(cmdArgs, "--format", "json")
 	var out, err bytes.Buffer
 	c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	c.Env = os.Environ()
 	c.Stdout = &out
 	c.Stderr = &err
-
-	cr := CommandResult{
-		Seq:     0,
-		Command: cmd,
-	}
 
 	fs := time.Now()
 	e := c.Start()
@@ -217,15 +305,13 @@ func RunCommand(cmd string) CommandResult {
 		if e != nil {
 			err.WriteString(e.Error())
 		} else {
-			cr.Out = ConstructToJSON("message", out.Bytes())
+			cmdctx.RawOut = out.String()
 		}
 	}
-	cr.Err = err.String()
+	cmdctx.Err = err.String()
 	fe := time.Now()
-	cr.ExitCode = c.ProcessState.ExitCode()
-	cr.CmdDuration = fe.Sub(fs)
-
-	return cr
+	cmdctx.ExitCode = c.ProcessState.ExitCode()
+	cmdctx.CmdDuration = fe.Sub(fs)
 }
 
 // HandleArguments handle user's input.
@@ -236,7 +322,7 @@ func HandleArguments() {
 	flag.Usage = PrintUsage
 	flag.Parse()
 
-	logger.Printf("output to: %s\n", output)
+	logger.Printf("output to: %s", output)
 
 	neutronArgsIndex := StringArray(os.Args).IndexOf("--")
 	if neutronArgsIndex == -1 {
@@ -250,7 +336,7 @@ func HandleArguments() {
 
 	neutronCmdArgs := strings.Join(os.Args[neutronArgsIndex+1:variableArgsIndex], " ")
 	neutronCmdArgs = checkLB + "|" + neutronCmdArgs
-	logger.Printf("Command template: %s\n", neutronCmdArgs)
+	logger.Printf("Command template: %s", neutronCmdArgs)
 
 	variables := map[string]StringArray{}
 
@@ -281,9 +367,9 @@ func HandleArguments() {
 		}
 	}
 
-	logger.Printf("variables parsed as\n")
+	logger.Printf("variables parsed as")
 	for k, v := range variables {
-		logger.Printf("%10s: %v\n", k, v)
+		logger.Printf("%10s: %v", k, v)
 	}
 
 	ConstructFromTemplate(neutronCmdArgs, variables)
@@ -349,28 +435,4 @@ func (sa StringArray) IndexOf(item string) int {
 		}
 	}
 	return -1
-}
-
-// ConstructToJSON unify the data stream to json - map[string]interface{}
-// no matter data is unstructed-string / list / json format.
-func ConstructToJSON(givenKey string, data []byte) map[string]interface{} {
-	var jo map[string]interface{}
-
-	e := json.Unmarshal(data, &jo)
-	if e == nil {
-	} else {
-		var lo []interface{}
-		e = json.Unmarshal(data, &lo)
-		if e == nil {
-			jo = map[string]interface{}{
-				givenKey: lo,
-			}
-		} else {
-			jo = map[string]interface{}{
-				givenKey: string(data),
-			}
-		}
-	}
-
-	return jo
 }
