@@ -2,15 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -58,11 +61,16 @@ var (
 
 	cmdResults = []CommandContext{}
 	cmdPrefix  = "neutron "
+
+	chsig = make(chan os.Signal)
 )
 
 func main() {
 
 	HandleArguments()
+
+	signal.Notify(chsig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+	go signalProcess()
 
 	if output != "/dev/stdout" {
 		of, e := os.OpenFile(output, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
@@ -85,7 +93,21 @@ func main() {
 	logger.Printf("neutron command: %s", neutron)
 
 	RunCmds()
+	WriteResult()
+	PrintReport()
+}
 
+func signalProcess() {
+	<-chsig
+	WriteResult()
+	PrintReport()
+
+	logger.Printf("Signal received, quit.")
+	os.Exit(0)
+}
+
+// WriteResult to files
+func WriteResult() {
 	jd, _ := json.MarshalIndent(cmdResults, "", "  ")
 	if output != "/dev/stdout" {
 		n, e := outputFile.WriteString(string(jd))
@@ -96,8 +118,6 @@ func main() {
 	} else {
 		fmt.Printf("%s\n", string(jd))
 	}
-
-	PrintReport()
 }
 
 // PrintReport print a summary to the executions.
@@ -151,7 +171,8 @@ func RunCmds() {
 
 		// check the command execution.
 		if cmdctx.ExitCode == 0 {
-			CheckLBStatus(&cmdctx)
+			// Temporarily not check the result.
+			//CheckLBStatus(&cmdctx)
 		} else {
 			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
 		}
@@ -179,7 +200,7 @@ func WaitForLBToNotPending(cmdctx *CommandContext) error {
 		return nil
 	}
 
-	logger.Printf("%s Check %s not pending", logPrefix, cmdctx.Check.LBIDName)
+	logger.Printf("%s Confirm %s is not pending", logPrefix, cmdctx.Check.LBIDName)
 
 	chkctx := CommandContext{
 		Command: fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName),
@@ -291,7 +312,12 @@ func RunCmd(cmdctx *CommandContext) {
 	cmdArgs := strings.Split(cmdctx.Command, " ")
 	cmdArgs = append(cmdArgs, "--format", "json")
 	var out, err bytes.Buffer
-	c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	// c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(30)*time.Minute)
+	defer cancel()
+	c := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+
 	c.Env = os.Environ()
 	c.Stdout = &out
 	c.Stderr = &err
