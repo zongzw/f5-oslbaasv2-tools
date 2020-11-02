@@ -38,7 +38,7 @@ func main() {
 	flag.StringVar(&begindts, "begin-time", "2000-01-01 00:00:00.000", "start datetime, format: 2006-01-02 15:04:05[.000].")
 	flag.StringVar(&enddts, "end-time", defaultdts, "end datetime, format: 2006-01-02 15:04:05[.000]")
 	flag.Var(&filters, "filter", "filter keys, regexp supported.")
-	flag.Var(&logPaths, "logpath", "log paths, regexp supported.")
+	flag.Var(&logPaths, "logpath", "log paths, regexp not supported.")
 	flag.StringVar(&output, "output-dirpath", ".", "output folder, will be created if not exists.")
 	flag.Parse()
 

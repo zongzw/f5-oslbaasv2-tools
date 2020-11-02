@@ -25,7 +25,7 @@ loadbalancer=lb-1-1
 pool=pl-1-1-8
 
 # the range of members, will be used in member's address 
-mbrange=75-128
+mbrange=129-138
 
 # The ip address first bits.
 ip_prefix=1.1.8

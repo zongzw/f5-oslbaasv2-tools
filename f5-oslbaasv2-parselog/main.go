@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -196,6 +197,9 @@ var (
 	wgRead  = sync.WaitGroup{}
 
 	debugSize = 50000
+
+	validLinePattern = `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3} .*req-[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`
+	regLine          = regexp.MustCompile(validLinePattern)
 )
 
 func main() {
@@ -391,6 +395,9 @@ func Read(f *os.File) {
 
 	for scanner.Scan() {
 		lines++
+		if !regLine.MatchString(scanner.Text()) {
+			continue
+		}
 		bufLock.Lock()
 		linesFIFO = append(linesFIFO, scanner.Text())
 		if lines%debugSize == 0 {
