@@ -2,6 +2,7 @@
 
 # This is a performance test script.
 # In sequence, it will create loadbalancer > pool > listener > member > healthmonitor > l7policy
+# Different with -tree-order, this script creates all LB, then creates all pools, next all listener ... all members.
 
 # Before running it, please change the variables between the 2 "========" lines in batchops.conf
 # They tell the script how many resources to create and other basical information(like subnet for lb creation).

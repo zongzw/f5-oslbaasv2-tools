@@ -446,9 +446,9 @@ func OutputResult(filepath string) {
 			switch f.Kind() {
 			case reflect.String:
 				dataLine = append(dataLine, fmt.Sprintf("\"%s\"", f.String()))
-			case reflect.Int:
-				dataLine = append(dataLine, fmt.Sprintf("%d", f.Int()))
-			case reflect.Map: // support only map[string]int
+			case reflect.Int64: // support only time.Duration for now.
+				dataLine = append(dataLine, fmt.Sprintf("%d", f.Int()/1e6))
+			case reflect.Map: // support only map[string]int for now.
 				ks := f.MapKeys()
 				dl := ""
 				for _, k := range ks {

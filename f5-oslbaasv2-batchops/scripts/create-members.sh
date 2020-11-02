@@ -13,22 +13,22 @@ source $openrc
 # ====================================================
 
 # subnet, used by 'neutron lbaas-loadbalancer-create <subnet>'
-subnet=private-subnet
+subnet=ext-net
 
 # project_name: the project to create members.
-project_name=admin
+project_name=proj_1
 
 # loadbalancer: the member belongs to.
-loadbalancer=lb-1
+loadbalancer=lb-1-1
 
 # pool: the member belongs to.
-pool=pl-1-1
+pool=pl-1-1-8
 
 # the range of members, will be used in member's address 
-mbrange=11-40
+mbrange=75-128
 
 # The ip address first bits.
-ip_prefix=11.11.11.
+ip_prefix=1.1.8
 # ====================================================
 
 dts=`date +%Y-%m-%d-%H-%M-%S`
@@ -36,6 +36,6 @@ source $openrc
 
 # create member
 $batchbin --output-filepath $output_dir/create_mb_$dts.json --check-lb $loadbalancer \
-    -- --os-project-name $project_name lbaas-member-create --name mb-%{mbrange} --subnet $subnet \
-        --address $ip_prefix%{mbrange} --protocol-port 80 $pool \
+    -- --os-project-name $project_name lbaas-member-create --name mb-$ip_prefix-%{mbrange} --subnet $subnet \
+        --address $ip_prefix.%{mbrange} --protocol-port 80 $pool \
     ++ mbrange:$mbrange

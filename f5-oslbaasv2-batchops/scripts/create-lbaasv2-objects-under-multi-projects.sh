@@ -6,4 +6,4 @@ source $workdir/batchops.conf
 source $openrc
 
 $workdir/create-projects.sh
-$workdir/create-lbaasv2-objects.sh
+$workdir/create-lbaasv2-objects-layer-order.sh
