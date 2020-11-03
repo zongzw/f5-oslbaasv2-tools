@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -304,6 +305,9 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 		logger.Fatalf("Abnormal thing happens. No request_id matched in log")
 	}
 
+	rltLock.Lock()
+	defer rltLock.Unlock()
+
 	if err = DefaultSet(values); err != nil {
 		logger.Printf("Error setting value %s: %s\n", values, err.Error())
 	}
@@ -320,9 +324,6 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 func SetAccessBIP(values map[string]string) error {
 	reqID := values["request_id"]
 
-	rltLock.Lock()
-	defer rltLock.Unlock()
-
 	rc := ResultMap[reqID]
 	m := rc.TmpBigipMethod
 	rc.BigipRequestCount[m]++
@@ -336,20 +337,15 @@ func SetAccessBIP(values map[string]string) error {
 func SetBIPResponse(values map[string]string) error {
 	reqID := values["request_id"]
 
-	rltLock.Lock()
-	defer rltLock.Unlock()
-
 	rc := ResultMap[reqID]
 	rc.BigipAccesses = append(rc.BigipAccesses,
 		fmt.Sprintf("%s|%s|%s", rc.TmpResponseTime, "response", rc.TmpResponseCode))
+
 	return nil
 }
 
 // DefaultSet set values into ResultMap
 func DefaultSet(values map[string]string) error {
-
-	rltLock.Lock()
-	defer rltLock.Unlock()
 
 	reqID := values["request_id"]
 	if _, ok := ResultMap[reqID]; !ok {
@@ -607,17 +603,18 @@ func CalculateDuration() {
 			rc.BigipDurationTotal = time.Duration(-1) * time.Millisecond
 			continue
 		}
+		sort.Strings(rc.BigipAccesses)
 		rc.BigipDurationTotal = time.Duration(0) * time.Millisecond
-		now := time.Now()
-		for _, n := range rc.BigipAccesses {
-			tms := strings.Split(n, "|")
-			var dur time.Duration
-			if tms[1] == "request" {
-				dur = now.Sub(FKTheTime(tms[0]))
-			} else if tms[1] == "response" {
-				dur = FKTheTime(tms[0]).Sub(now)
+
+		for i := 0; i < len(rc.BigipAccesses)-1; i = i + 2 {
+			tms := strings.Split(rc.BigipAccesses[i], "|")
+			tme := strings.Split(rc.BigipAccesses[i+1], "|")
+			if tms[1] != "request" || tme[1] != "response" {
+				rc.BigipDurationTotal = time.Duration(-1) * time.Millisecond
+				break
 			}
-			rc.BigipDurationTotal = rc.BigipDurationTotal + dur
+
+			rc.BigipDurationTotal = rc.BigipDurationTotal + FKTheTime(tme[0]).Sub(FKTheTime(tms[0]))
 
 		}
 	}
