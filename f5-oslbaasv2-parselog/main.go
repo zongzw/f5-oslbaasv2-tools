@@ -50,14 +50,15 @@ type RequestContext struct {
 	UpdateStatusTime string `json:"time_update_status"`
 
 	// access dbv2  analytics metrics
-	TmpDBBeginTime string `json:"time_db_begin"`
-	TmpDBEndTime   string `json:"time_db_end"`
+	TmpDBBeginTime string `json:"time_db_begin" my:"noprint"`
+	TmpDBEndTime   string `json:"time_db_end" my:"noprint"`
 
 	// access bigip analytics metrics
-	TmpBigipTime    string `json:"bigip_request_time"`
-	TmpResponseTime string `json:"bigip_response_time"`
-	TmpBigipMethod  string `json:"bigip_request_method"`
-	TmpResponseCode string `json:"bigip_response_code"`
+	TmpBigipTime    string   `json:"bigip_request_time" my:"noprint"`
+	TmpResponseTime string   `json:"bigip_response_time" my:"noprint"`
+	TmpBigipMethod  string   `json:"bigip_request_method" my:"noprint"`
+	TmpResponseCode string   `json:"bigip_response_code" my:"noprint"`
+	BigipAccesses   []string `json:"bigip_accesses" my:"noprint"`
 
 	// Calculated data
 	DurationNeutronDriver     time.Duration  `json:"duration_neutron_driver"`
@@ -325,13 +326,8 @@ func SetAccessBIP(values map[string]string) error {
 	rc := ResultMap[reqID]
 	m := rc.TmpBigipMethod
 	rc.BigipRequestCount[m]++
-
-	if rc.TmpResponseTime != "" {
-		t := FKTheTime(rc.TmpResponseTime)
-		rc.BigipDurationTotal = rc.BigipDurationTotal + t.Sub(FKTheTime(rc.TmpBigipTime))
-		rc.TmpResponseTime = ""
-		rc.TmpBigipTime = ""
-	}
+	rc.BigipAccesses = append(rc.BigipAccesses,
+		fmt.Sprintf("%s|%s|%s", rc.TmpBigipTime, "request", rc.TmpBigipMethod))
 
 	return nil
 }
@@ -344,13 +340,8 @@ func SetBIPResponse(values map[string]string) error {
 	defer rltLock.Unlock()
 
 	rc := ResultMap[reqID]
-	if rc.TmpBigipTime != "" {
-		t := FKTheTime(rc.TmpBigipTime)
-		rc.BigipDurationTotal = rc.BigipDurationTotal + FKTheTime(rc.TmpResponseTime).Sub(t)
-		rc.TmpResponseTime = ""
-		rc.TmpBigipTime = ""
-	}
-
+	rc.BigipAccesses = append(rc.BigipAccesses,
+		fmt.Sprintf("%s|%s|%s", rc.TmpResponseTime, "response", rc.TmpResponseCode))
 	return nil
 }
 
@@ -428,15 +419,12 @@ func OutputResult(filepath string) {
 	}
 	defer fw.Close()
 
-	// titleLine := []string{
-	// 	"request_id", "object_id", "object_type", "operation_type", "request_body",
-	// 	"time_neutron_api", "time_f5driver", "time_f5agent", "time_f5agent", "bigip_request_time", "time_update_status",
-	// 	"dur_neu_drv", "dur_drv_rpc", "dur_rpc_agt", "dur_agt_upd", "total",
-	// }
-
 	titleLine := []string{}
 	t := reflect.TypeOf(RequestContext{})
 	for i := 0; i < t.NumField(); i++ {
+		if strings.Index(t.Field(i).Tag.Get("my"), "noprint") != -1 {
+			continue
+		}
 		titleLine = append(titleLine, t.Field(i).Tag.Get("json"))
 	}
 
@@ -446,9 +434,13 @@ func OutputResult(filepath string) {
 	}
 
 	for _, pRC := range ResultMap {
-		v := reflect.ValueOf(*pRC)
 		dataLine := []string{}
+		v := reflect.ValueOf(*pRC)
+		t := reflect.TypeOf(RequestContext{})
 		for i := 0; i < v.NumField(); i++ {
+			if strings.Index(t.Field(i).Tag.Get("my"), "noprint") != -1 {
+				continue
+			}
 			f := v.Field(i)
 			switch f.Kind() {
 			case reflect.String:
@@ -609,6 +601,25 @@ func CalculateDuration() {
 		rc.DurationRPCAgent = tAgent.Sub(tRPC)
 		rc.DurationAgentUpdateStatus = tUpdate.Sub(tAgent)
 		rc.DurationOperationTotal = tUpdate.Sub(tNeutron)
+
+		biplen := len(rc.BigipAccesses)
+		if biplen%2 != 0 {
+			rc.BigipDurationTotal = time.Duration(-1) * time.Millisecond
+			continue
+		}
+		rc.BigipDurationTotal = time.Duration(0) * time.Millisecond
+		now := time.Now()
+		for _, n := range rc.BigipAccesses {
+			tms := strings.Split(n, "|")
+			var dur time.Duration
+			if tms[1] == "request" {
+				dur = now.Sub(FKTheTime(tms[0]))
+			} else if tms[1] == "response" {
+				dur = FKTheTime(tms[0]).Sub(now)
+			}
+			rc.BigipDurationTotal = rc.BigipDurationTotal + dur
+
+		}
 	}
 }
 
