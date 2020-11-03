@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"reflect"
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	// "encoding/json"
@@ -72,7 +74,8 @@ type RequestContext struct {
 }
 
 var (
-	logger = log.New(os.Stdout, "", log.LstdFlags)
+	logger         = log.New(os.Stdout, "", log.LstdFlags)
+	outputFilePath = "./result.csv"
 
 	pBasicFields = map[string]string{
 		"UUID":      `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
@@ -202,14 +205,18 @@ var (
 
 	validLinePattern = `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3} .*req-[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`
 	regLine          = regexp.MustCompile(validLinePattern)
+
+	chSignal = make(chan os.Signal)
 )
 
 func main() {
 
 	var logpaths arrayFlags
-	var outputFilePath string
 	// var output_ts string
 	var t bool
+
+	signal.Notify(chSignal, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
+	go signalHandler()
 
 	flag.Var(&logpaths, "logpath",
 		"The log path for analytics. It can be used multiple times. "+
@@ -217,7 +224,7 @@ func main() {
 			"e.g: --logpath /path/to/f5-openstack-agent.log "+
 			"--logpath \"/var/log/neutron/f5-openstack-*.log\" "+
 			"--logpath /var/log/neutron/server\\*.log")
-	flag.StringVar(&outputFilePath, "output-filepath", "",
+	flag.StringVar(&outputFilePath, "output-filepath", outputFilePath,
 		"Output the result to file, e.g: /path/to/result.csv")
 	// TODO: output result to f5 telemetry analytics.
 	// flag.StringVar(&output_ts, "output-ts", "./result.json",
@@ -260,6 +267,14 @@ func main() {
 	CalculateDuration()
 
 	OutputResult(outputFilePath)
+}
+
+func signalHandler() {
+	<-chSignal
+
+	CalculateDuration()
+	OutputResult(outputFilePath)
+	os.Exit(1)
 }
 
 // Parse parse lines
