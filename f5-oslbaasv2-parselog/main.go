@@ -207,6 +207,8 @@ var (
 	regLine          = regexp.MustCompile(validLinePattern)
 
 	chSignal = make(chan os.Signal)
+
+	totalLines = 0
 )
 
 func main() {
@@ -250,6 +252,7 @@ func main() {
 		logger.Fatal(e)
 	}
 
+	totalBegin := time.Now()
 	for i := 0; i < nThrParse; i++ {
 		wgParse.Add(1)
 		go Parse(g)
@@ -263,6 +266,12 @@ func main() {
 	wgRead.Wait()
 	readDone = true
 	wgParse.Wait()
+
+	totalEnd := time.Now()
+
+	logger.Println()
+	logger.Printf("Total read %d lines, cost time: %f seconds", totalLines, totalEnd.Sub(totalBegin).Seconds())
+	logger.Println()
 
 	CalculateDuration()
 
@@ -430,6 +439,7 @@ func Read(f *os.File) {
 		logger.Printf("Done of read from file %s, lines: %d, total time: %v ms \n",
 			f.Name(), lines, (fe-fs)/1e6)
 	}
+	totalLines = totalLines + lines
 }
 
 // OutputResult output the ResultMap to file.
