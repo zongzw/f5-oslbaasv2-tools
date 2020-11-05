@@ -353,8 +353,18 @@ func SetBIPResponse(values map[string]string) error {
 	reqID := values["request_id"]
 
 	rc := ResultMap[reqID]
+
+	// Use 'reply' not 'response' here:
+	// 	If the 'reply' time is as same as next 'request' time,
+	// 	the 'reply' entry will be sorted before next 'request' one, like
+	// ...
+	// [6] "2020-11-05 03:07:22.416|request|get"
+	// [7] "2020-11-05 03:07:22.482|reply|200"			<- this 'reply'
+	// [8] "2020-11-05 03:07:22.482|request|patch"		<- next 'request'
+	// [9] "2020-11-05 03:07:22.584|reply|200"
+	// ...
 	rc.BigipAccesses = append(rc.BigipAccesses,
-		fmt.Sprintf("%s|%s|%s", rc.TmpResponseTime, "response", rc.TmpResponseCode))
+		fmt.Sprintf("%s|%s|%s", rc.TmpResponseTime, "reply", rc.TmpResponseCode))
 
 	return nil
 }
@@ -397,14 +407,14 @@ func Read(f *os.File) {
 
 	for scanner.Scan() {
 		lines++
+		if lines%debugSize == 0 {
+			logger.Printf("%s, read lines %d, len of linesFIFO: %d\n", f.Name(), lines, len(linesFIFO))
+		}
 		if !regLine.MatchString(scanner.Text()) {
 			continue
 		}
 		bufLock.Lock()
 		linesFIFO = append(linesFIFO, scanner.Text())
-		if lines%debugSize == 0 {
-			logger.Printf("%s, read lines %d, len of linesFIFO: %d\n", f.Name(), lines, len(linesFIFO))
-		}
 		bufLock.Unlock()
 
 		if len(linesFIFO) > linesFIFOSize {
@@ -417,7 +427,7 @@ func Read(f *os.File) {
 		logger.Printf("Error happens at %s line %d\n", f.Name(), lines)
 		logger.Fatal(err)
 	} else {
-		logger.Printf("Read from file %s, lines: %d, total time: %v ms \n",
+		logger.Printf("Done of read from file %s, lines: %d, total time: %v ms \n",
 			f.Name(), lines, (fe-fs)/1e6)
 	}
 }
@@ -575,8 +585,8 @@ func HandleArguments(logpaths []string, outputFilePath string) ([]*os.File, erro
 		}
 
 		if f.IsDir() {
-			logger.Printf("%s should be a file, not a directory.\n", f.Name())
-			pathOK = false
+			logger.Printf("%s should be a file, not a directory, ignore it.\n", f.Name())
+			continue
 		}
 
 		fr, err := os.Open(p)
@@ -615,7 +625,7 @@ func CalculateDuration() {
 
 		biplen := len(rc.BigipAccesses)
 		if biplen%2 != 0 {
-			rc.BigipDurationTotal = time.Duration(-1) * time.Millisecond
+			rc.BigipDurationTotal = time.Duration(-2) * time.Millisecond
 			continue
 		}
 		sort.Strings(rc.BigipAccesses)
@@ -624,8 +634,8 @@ func CalculateDuration() {
 		for i := 0; i < len(rc.BigipAccesses)-1; i = i + 2 {
 			tms := strings.Split(rc.BigipAccesses[i], "|")
 			tme := strings.Split(rc.BigipAccesses[i+1], "|")
-			if tms[1] != "request" || tme[1] != "response" {
-				rc.BigipDurationTotal = time.Duration(-1) * time.Millisecond
+			if (tms[1] != "request" || tme[1] != "reply") && tms[0] != tme[0] {
+				rc.BigipDurationTotal = time.Duration(-3) * time.Millisecond
 				break
 			}
 

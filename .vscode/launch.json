@@ -95,8 +95,12 @@
             //     "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7.log",
             //     "--output-filepath", "./output/test.csv"
             // ]
-            "args": [ // test bigip time analytics
-                "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-d6af6e14-930c-486f-9403-c1792119986e.log",
+            // "args": [ // test bigip time analytics
+            //     "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-d6af6e14-930c-486f-9403-c1792119986e.log",
+            //     "--output-filepath", "./output/test.csv"
+            // ]
+            "args": [ // find issue of bigip time -1
+                "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-784572e6-4622-477e-8500-ab43539b86de.log",
                 "--output-filepath", "./output/test.csv"
             ]
             

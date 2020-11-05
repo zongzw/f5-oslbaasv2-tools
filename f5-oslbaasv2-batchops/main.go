@@ -102,7 +102,7 @@ func signalProcess() {
 	WriteResult()
 	PrintReport()
 
-	logger.Printf("Signal received, quit.")
+	logger.Printf("Signal received, quit. Partial results are output to %s", output)
 	os.Exit(0)
 }
 
