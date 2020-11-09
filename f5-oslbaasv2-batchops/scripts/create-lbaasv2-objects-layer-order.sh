@@ -31,6 +31,12 @@ $batchbin --output-filepath $output_dir/create_pl_$dts.json --check-lb lb-%{pjra
         --lb-algorithm ROUND_ROBIN --loadbalancer lb-%{pjrange}-%{lbrange} --protocol HTTP \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
 
+# create healthmonitor
+$batchbin --output-filepath $output_dir/create_hm_$dts.json --check-lb lb-%{pjrange}-%{lbrange} \
+    -- --os-project-name proj_%{pjrange} lbaas-healthmonitor-create --name hm-%{pjrange}-%{lbrange}-%{plrange} \
+        --timeout 15 --delay 15 --max-retries 5 --type PING --pool pl-%{pjrange}-%{lbrange}-%{plrange} \
+    ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
+
 # create listener
 $batchbin --output-filepath $output_dir/create_ls_$dts.json --check-lb lb-%{pjrange}-%{lbrange} \
     -- --os-project-name proj_%{pjrange} lbaas-listener-create --name ls-%{pjrange}-%{lbrange}-%{lsrange} \
@@ -42,12 +48,6 @@ $batchbin --output-filepath $output_dir/create_mb_$dts.json --check-lb lb-%{pjra
     -- --os-project-name proj_%{pjrange} lbaas-member-create --name mb-%{pjrange}-%{lbrange}-%{plrange}-%{mbrange} \
         --subnet %{subnet} --address %{pjrange}.%{lbrange}.%{plrange}.%{mbrange} --protocol-port 80 pl-%{pjrange}-%{lbrange}-%{plrange} \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange mbrange:$mbrange subnet:$subnet
-
-# create healthmonitor
-$batchbin --output-filepath $output_dir/create_hm_$dts.json --check-lb lb-%{pjrange}-%{lbrange} \
-    -- --os-project-name proj_%{pjrange} lbaas-healthmonitor-create --name hm-%{pjrange}-%{lbrange}-%{plrange} \
-        --timeout 15 --delay 15 --max-retries 5 --type PING --pool pl-%{pjrange}-%{lbrange}-%{plrange} \
-    ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
 
 # create l7policy
 $batchbin --output-filepath $output_dir/create_l7p_$dts.json --check-lb lb-%{pjrange}-%{lbrange} \

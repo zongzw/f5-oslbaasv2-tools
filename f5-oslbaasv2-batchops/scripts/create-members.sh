@@ -13,7 +13,7 @@ source $openrc
 # ====================================================
 
 # subnet, used by 'neutron lbaas-loadbalancer-create <subnet>'
-subnet=ext-net
+subnet=c4cca9f5-83b3-4f1a-a170-baf6cd1104f5
 
 # project_name: the project to create members.
 project_name=proj_1

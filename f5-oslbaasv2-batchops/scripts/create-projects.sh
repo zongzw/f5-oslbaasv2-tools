@@ -47,7 +47,8 @@ index=$project_start_no
 while [ $index -le $project_end_no ]; do
     project_name=$project_prefix$index
     echo "Creating project: $project_name ..."
-    openstack project create --domain default $project_name 2> /dev/null
+    #openstack project create --domain default $project_name 2> /dev/null
+    openstack project create $project_name 2> /dev/null
 
     echo "Add user admin to project $project_name ..."
     openstack role add --project $project_name --user admin admin
