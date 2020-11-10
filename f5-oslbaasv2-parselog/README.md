@@ -93,4 +93,4 @@ logging_user_identity_format = %(user)s %(tenant)s %(domain)s %(user_domain)s %(
 
 * The single line length should be less than 512 * 1024 english characters.
 * The program will make dozens of threads for 1) reading from files(1 per log file appointed by `--logpath`) and 2) parsing log entries cocurrently, change it if necessary(`nThrFilesMax` and `nThrParse` variable in the code), then re-build it.
-* Logging handling performance: 4000 lines/sec.
+* Logging handling performance: > 50000 lines/sec.

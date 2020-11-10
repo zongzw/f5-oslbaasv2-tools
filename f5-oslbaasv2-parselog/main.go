@@ -30,8 +30,9 @@ const fkTimeLayout = "2006-01-02 15:04:05"
 
 // MatchHandler a structure storing pattern and corresponding handler.
 type MatchHandler struct {
-	Pattern  string
-	Function func(values map[string]string) error
+	KeyString string
+	Pattern   string
+	Function  func(values map[string]string) error
 }
 
 // RequestContext request context parsed from log
@@ -97,6 +98,7 @@ var (
 		// {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		// prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713
 		"neutron_api_v2_base": MatchHandler{
+			KeyString: "neutron.api.v2.base",
 			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} .*\] ` +
 				`Request body: %{JSON:request_body} prepare_request_body .*$`,
 			Function: nil,
@@ -108,6 +110,7 @@ var (
 		// <neutron_lbaas.services.loadbalancer.data_models.LoadBalancer object at 0xdb44250>) {}
 		// wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5driver": MatchHandler{
+			KeyString: "f5lbaasdriver.v2.bigip.driver_v2",
 			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
 			Function: nil,
@@ -132,6 +135,7 @@ var (
 		// 'OFFLINE', 'name': 'JL-B01-POD1-CORE-LB-7'}}, u'POD1_CORE3') {} wrapper /usr/lib/python2.7/site-packages/oslo_l
 		// og/helpers.py:66
 		"rpc_f5agent": MatchHandler{
+			KeyString: "f5lbaasdriver.v2.bigip.agent_rpc",
 			Pattern: `%{DATETIME:time_rpc} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
 				`.*? 'id': '%{UUID:object_id}'.*`,
@@ -144,6 +148,7 @@ var (
 		// ...
 		// 7'}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5agent": MatchHandler{
+			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip",
 			Pattern: `%{DATETIME:time_f5agent} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD:agent_module} \[%{REQID:request_id} .*\] ` +
 				`f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
 				`called with arguments .*`,
@@ -154,15 +159,17 @@ var (
 		// 62c38230485b4794a8eedece5dac9192 - - -] get WITH uri: https://10.216.177.8:443/mgmt/tm/sys/folder/~CORE_62c38230485b4794a8eedece5dac9192 AND
 		// suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257
 		"rest_call_bigip": MatchHandler{
-			Pattern:  `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:bigip_request_method} WITH uri: .*icontrol/session.py.*`,
-			Function: SetAccessBIP,
+			KeyString: "WITH uri: ",
+			Pattern:   `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:bigip_request_method} WITH uri: .*icontrol/session.py.*`,
+			Function:  SetAccessBIP,
 		},
 
 		// 2020-10-28 16:17:55.280 151202 DEBUG root [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf
 		// 94f2338bf383405db151c4784c0e358c - - -] RESPONSE::STATUS: 200 Content-Type: application/json; charset=UTF-8 Content-Encoding: None
 		"rest_bigip_response": MatchHandler{
-			Pattern:  `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
-			Function: SetBIPResponse,
+			KeyString: "RESPONSE::STATUS: ",
+			Pattern:   `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
+			Function:  SetBIPResponse,
 		},
 
 		// 2020-10-05 10:19:18.411 295263 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc
@@ -171,6 +178,7 @@ var (
 		// (u'e2d277f7-eca2-46a4-bf2c-655856fd8733', 'ACTIVE', 'ONLINE', u'JL-B01-POD1-CORE-LB-7') {} wrapper
 		// /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"update_loadbalancer_status": MatchHandler{
+			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc",
 			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} .*\].* ` +
 				`method update_loadbalancer_status called with arguments.*`,
 			Function: nil,
@@ -309,20 +317,26 @@ func Parse(g *grok.Grok) {
 
 		if t != "" {
 			for k := range pLBaaSv2 {
-				Parse2Result(g, k, t)
+				if Parse2Result(g, k, t) {
+					break
+				}
 			}
 		}
 	}
 }
 
 // Parse2Result parse text with k pattern.
-func Parse2Result(g *grok.Grok, k string, text string) {
+func Parse2Result(g *grok.Grok, k string, text string) bool {
+	if strings.Index(text, pLBaaSv2[k].KeyString) == -1 {
+		return false
+	}
+
 	values, err := g.ParseString(fmt.Sprintf("%%{%s}", k), text)
 	if err != nil {
 		logger.Fatal(err)
 	}
 	if len(values) == 0 {
-		return
+		return false
 	}
 
 	if _, ok := values["request_id"]; !ok {
@@ -342,6 +356,8 @@ func Parse2Result(g *grok.Grok, k string, text string) {
 			logger.Printf("Error customizing setting %s: %s\n", values, err.Error())
 		}
 	}
+
+	return true
 }
 
 // SetAccessBIP additional setting to accessing bigip
@@ -650,7 +666,6 @@ func CalculateDuration() {
 			}
 
 			rc.BigipDurationTotal = rc.BigipDurationTotal + FKTheTime(tme[0]).Sub(FKTheTime(tms[0]))
-
 		}
 	}
 }

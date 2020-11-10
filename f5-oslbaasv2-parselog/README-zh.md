@@ -98,4 +98,4 @@ logging_user_identity_format = %(user)s %(tenant)s %(domain)s %(user_domain)s %(
 
 * 单行日志的长度最大为512K Bytes（目前已知最大长度为~64KB）。
 * 此命令执行过程中会多线程读入各个`--logpath`文件内容（每个文件一个线程）。同样，分析过程也是多个线程并行执行以提高匹配效率。默认情况下不需要修改`nThrFilesMax` 和 `nThrParse`，这两个值已调至最优值。如修改，可以执行`./build.sh` 重新编译。
-* 程序处理log 能力： > 4000 行/秒。
+* 程序处理log 能力： > 50000 行/秒。
