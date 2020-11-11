@@ -216,7 +216,8 @@ var (
 
 	chSignal = make(chan os.Signal)
 
-	totalLines = 0
+	totalLines    = 0
+	maxLineLength = 512 * 1024
 )
 
 func main() {
@@ -240,6 +241,7 @@ func main() {
 	// flag.StringVar(&output_ts, "output-ts", "./result.json",
 	// 	"Output the result to f5-telemetry-analytics. e.g: http://1.1.1.1:200002")
 	flag.BoolVar(&t, "test", false, "Program self test option..")
+	flag.IntVar(&maxLineLength, "max-line-length", maxLineLength, "Max line length in the parsing log.")
 	flag.Parse()
 
 	if t {
@@ -423,14 +425,30 @@ func Read(f *os.File) {
 	log.Printf("Start to reading %s\n", f.Name())
 
 	scanner := bufio.NewScanner(f)
-	maxCapacity := 512 * 1024 // default max size 64*1024
+	maxCapacity := maxLineLength
 	buf := make([]byte, maxCapacity)
 	scanner.Buffer(buf, maxCapacity)
 
 	fs := time.Now().UnixNano()
 	lines := 0
 
-	for scanner.Scan() {
+	for true {
+		scanned := scanner.Scan()
+		if !scanned {
+			if err := scanner.Err(); err != nil {
+				logger.Printf("Error happens at %s line %d.", f.Name(), lines+1)
+				if strings.HasPrefix(err.Error(), "bufio.Scanner: token too long") {
+					logger.Printf("Enlarge the buffer size to double size for another try: %d", maxCapacity*2)
+				}
+				logger.Fatal(err)
+
+			} else {
+				fe := time.Now().UnixNano()
+				logger.Printf("Done of read from file %s, lines: %d, total time: %v ms \n",
+					f.Name(), lines, (fe-fs)/1e6)
+				break
+			}
+		}
 		lines++
 		if lines%debugSize == 0 {
 			logger.Printf("%s, read lines %d, len of linesFIFO: %d\n", f.Name(), lines, len(linesFIFO))
@@ -447,14 +465,6 @@ func Read(f *os.File) {
 		}
 	}
 
-	fe := time.Now().UnixNano()
-	if err := scanner.Err(); err != nil {
-		logger.Printf("Error happens at %s line %d\n", f.Name(), lines)
-		logger.Fatal(err)
-	} else {
-		logger.Printf("Done of read from file %s, lines: %d, total time: %v ms \n",
-			f.Name(), lines, (fe-fs)/1e6)
-	}
 	totalLines = totalLines + lines
 }
 

@@ -45,7 +45,7 @@ function unlimit_lbaas_quota() {
 
 index=$project_start_no
 while [ $index -le $project_end_no ]; do
-    project_name=$project_prefix$index
+    project_name=$prefix_proj$index
     echo "Creating project: $project_name ..."
     #openstack project create --domain default $project_name 2> /dev/null
     openstack project create $project_name 2> /dev/null

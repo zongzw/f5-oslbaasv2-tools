@@ -10,6 +10,12 @@
 # and then use 'neutron lbaas-<resource_type>-delete' to delete them one by one.
 
 # healthmonitor
+
+workdir=`cd $(dirname $0); pwd`
+source $workdir/batchops.conf
+
+source $openrc
+
 echo "Deleting healthmonitor ..."
 hms=`neutron lbaas-healthmonitor-list -f value -c id`
 for j in $hms; do
