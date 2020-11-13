@@ -29,6 +29,7 @@ You need to change the log level to debug:
   debug = True
   ```
 
+For multiple-neutron-server environment, please keep the datetime are same(NTP should be better), otherwise, the duration(s) may be not accurate.
 
 ## Usage
 

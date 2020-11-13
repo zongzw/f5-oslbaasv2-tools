@@ -47,11 +47,12 @@ type RequestContext struct {
 	OperationType string `json:"operation_type"`
 
 	// phrase timestamp
-	NeutronAPITime   string `json:"time_neutron_api"`
-	F5DriverTime     string `json:"time_f5driver"`
-	RPCTime          string `json:"time_rpc"`
-	F5AgentTime      string `json:"time_f5agent"`
-	UpdateStatusTime string `json:"time_update_status"`
+	TimeNeutronAPI   string `json:"time_neutron_api"`
+	TimeNeutronLBaaS string `json:"time_neutron_lbaas"`
+	TimeF5Driver     string `json:"time_f5driver"`
+	TimeRPC          string `json:"time_rpc"`
+	TimeF5Agent      string `json:"time_f5agent"`
+	TimeUpdateStatus string `json:"time_update_status"`
 
 	// access dbv2  analytics metrics
 	TmpDBBeginTime string `json:"time_db_begin" my:"noprint"`
@@ -101,6 +102,16 @@ var (
 			KeyString: "neutron.api.v2.base",
 			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} .*\] ` +
 				`Request body: %{JSON:request_body} prepare_request_body .*$`,
+			Function: nil,
+		},
+
+		// 2020-11-06 21:11:05.844 708196 INFO neutron_lbaas.services.loadbalancer.plugin
+		// [req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - default default]
+		// Calling driver operation ListenerManager.delete
+		"neutron_lbaas_entry": MatchHandler{
+			KeyString: "neutron_lbaas.services.loadbalancer.plugin",
+			Pattern: `%{DATETIME:time_neutron_lbaas} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} .*\] ` +
+				`Calling driver operation %{LBTYPE:object_type}Manager.%{ACTION:operation_type}.*$`,
 			Function: nil,
 		},
 
@@ -647,11 +658,11 @@ func FKTheTime(datm string) time.Time {
 // CalculateDuration calculate the duration.
 func CalculateDuration() {
 	for _, rc := range ResultMap {
-		tNeutron := FKTheTime(rc.NeutronAPITime)
-		tDriver := FKTheTime(rc.F5DriverTime)
-		tRPC := FKTheTime(rc.RPCTime)
-		tAgent := FKTheTime(rc.F5AgentTime)
-		tUpdate := FKTheTime(rc.UpdateStatusTime)
+		tNeutron := FKTheTime(rc.TimeNeutronAPI)
+		tDriver := FKTheTime(rc.TimeF5Driver)
+		tRPC := FKTheTime(rc.TimeRPC)
+		tAgent := FKTheTime(rc.TimeF5Agent)
+		tUpdate := FKTheTime(rc.TimeUpdateStatus)
 
 		rc.DurationNeutronDriver = tDriver.Sub(tNeutron)
 		rc.DurationDriverRPC = tRPC.Sub(tDriver)
@@ -745,6 +756,13 @@ func TestCases() map[string][]string {
 			`2020-10-05 10:20:15.791 117825 DEBUG neutron.api.v2.base [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body: {u'loadbalancer': {u'vip_subnet_id': u'd79ef712-c1e3-4860-9343-d1702b9976aa', u'provider': u'core', u'name': u'JL-B01-POD1-CORE-LB-7', u'admin_state_up': True}} prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713`,
 			// member
 			`2020-10-05 14:50:24.795 117812 DEBUG neutron.api.v2.base [req-be08ea84-f721-46da-b24e-6e2c249af84e 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body: {u'member': {u'subnet_id': u'5ee954be-8a76-4e42-b7a9-13a08e5330ce', u'address': u'10.230.3.39', u'protocol_port': 39130, u'weight': 5, u'admin_state_up': True}} prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713`,
+		},
+
+		"neutron_lbaas_entry": []string{
+			// member.create
+			"2020-11-05 03:05:13.382 423178 INFO neutron_lbaas.services.loadbalancer.plugin [req-784572e6-4622-477e-8500-ab43539b86de a975df1b007d413c8ebc2e90d46232cf 0699110021c743249033aad76967f42f - default default] Calling driver operation MemberManager.create",
+			// listener.delete
+			"2020-11-06 21:11:05.844 708196 INFO neutron_lbaas.services.loadbalancer.plugin [req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - default default] Calling driver operation ListenerManager.delete",
 		},
 
 		"call_f5driver": []string{
