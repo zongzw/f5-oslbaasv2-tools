@@ -156,6 +156,20 @@
                 "--filter", "req-1a9d27bf-6c9e-41f0-9f95-e03fc571c451",
                 "--output-dirpath", "./output/"
             ]
+        },
+        {
+            "name": "debug f5-oslbaasv2-mergelog",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/f5-oslbaasv2-mergelog",
+            "env": {},
+            "args": [
+                "--logpath", "${workspaceFolder}/f5-oslbaasv2-mergelog/tests/req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f-delete.log",
+                "--logpath", "${workspaceFolder}/f5-oslbaasv2-mergelog/tests/req-d6af6e14-930c-486f-9403-c1792119986e.log",
+                "--output-filepath", "output/test.log",
+                "--relative-time"
+            ]
         }
     ]
 }
