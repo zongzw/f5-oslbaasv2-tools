@@ -22,13 +22,13 @@ project_name=proj_1
 loadbalancer=lb-1-1
 
 # pool: the member belongs to.
-pool=pl-1-1-7
+pool=pl-1-1-8
 
 # the range of members, will be used in member's address 
-mbrange=26-74
+mbrange=75-138
 
 # The ip address first bits.
-ip_prefix=1.1.7
+ip_prefix=1.1.8
 # ====================================================
 
 dts=`date +%Y-%m-%d-%H-%M-%S`
