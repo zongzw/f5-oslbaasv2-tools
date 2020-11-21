@@ -50,6 +50,7 @@ type RequestContext struct {
 	TimeNeutronAPI   string `json:"time_neutron_api"`
 	TimeNeutronLBaaS string `json:"time_neutron_lbaas"`
 	TimeF5Driver     string `json:"time_f5driver"`
+	TimePortCreated  string `json:"time_portcreated"`
 	TimeRPC          string `json:"time_rpc"`
 	TimeF5Agent      string `json:"time_f5agent"`
 	TimeUpdateStatus string `json:"time_update_status"`
@@ -67,6 +68,7 @@ type RequestContext struct {
 
 	// Calculated data
 	DurationNeutronDriver     time.Duration  `json:"duration_neutron_driver"`
+	DurationDriverPortCreated time.Duration  `json:"duration_driver_portcreated"`
 	DurationDriverRPC         time.Duration  `json:"duration_driver_rpc"`
 	DurationRPCAgent          time.Duration  `json:"duration_rpc_agent"`
 	DurationAgentUpdateStatus time.Duration  `json:"duration_agent_updatestatus"`
@@ -124,6 +126,23 @@ var (
 			KeyString: "f5lbaasdriver.v2.bigip.driver_v2",
 			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
+			Function: nil,
+		},
+
+		// 2020-10-28 16:17:00.234 150581 DEBUG f5lbaasdriver.v2.bigip.driver_v2
+		// [req-3b85ab54-c3c6-4032-9ff7-6a56233d27d7 a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - default default]
+		// the port created here is: {'status': u'DOWN', 'binding:host_id': u'POD1_CORE', 'description': None, 'allowed_address_pairs': [], 'tags': [],
+		// 'extra_dhcp_opts': [], 'updated_at': '2020-10-28T08:16:59Z', 'device_owner': u'network:f5lbaasv2', 'revision_number': 3, 'port_security_enabled':
+		// False, 'binding:profile': {}, 'fixed_ips': [{'subnet_id': u'550ebc09-2836-4ead-adef-225dd849c426', 'ip_address': u'10.250.23.18'}],
+		// 'id': u'ffb79c1e-db31-44e2-bd82-1eeb51b51b43', 'security_groups': [], 'device_id': u'1ce8e148-6e6e-4d84-b1ce-dc05c268ef9b', 'name':
+		// u'fake_pool_port_1ce8e148-6e6e-4d84-b1ce-dc05c268ef9b', 'admin_state_up': True, 'network_id': u'0f35109d-8620-4e46-882f-63f4b2e87163',
+		// 'tenant_id': u'94f2338bf383405db151c4784c0e358c', 'binding:vif_details': {}, 'binding:vnic_type': u'baremetal', 'binding:vif_type': 'binding_failed',
+		// 'qos_policy_id': None, 'mac_address': u'fa:16:3e:25:8e:1e', 'project_id': u'94f2338bf383405db151c4784c0e358c', 'created_at': '2020-10-28T08:16:59Z'}
+		// create /usr/lib/python2.7/site-packages/f5lbaasdriver/v2/bigip/driver_v2.py:727
+		"create_port": MatchHandler{
+			KeyString: "f5lbaasdriver.v2.bigip.driver_v2",
+			Pattern: `%{DATETIME:time_portcreated} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
+				`the port created here is: .*$`,
 			Function: nil,
 		},
 
@@ -449,7 +468,9 @@ func Read(f *os.File) {
 			if err := scanner.Err(); err != nil {
 				logger.Printf("Error happens at %s line %d.", f.Name(), lines+1)
 				if strings.HasPrefix(err.Error(), "bufio.Scanner: token too long") {
-					logger.Printf("Enlarge the buffer size to double size for another try: %d", maxCapacity*2)
+					logger.Println()
+					logger.Printf("Use --max-line-length to enlarge the buffer size to double size for another try: %d", maxCapacity*2)
+					logger.Println()
 				}
 				logger.Fatal(err)
 
@@ -660,12 +681,14 @@ func CalculateDuration() {
 	for _, rc := range ResultMap {
 		tNeutron := FKTheTime(rc.TimeNeutronAPI)
 		tDriver := FKTheTime(rc.TimeF5Driver)
+		tPortCreated := FKTheTime(rc.TimePortCreated)
 		tRPC := FKTheTime(rc.TimeRPC)
 		tAgent := FKTheTime(rc.TimeF5Agent)
 		tUpdate := FKTheTime(rc.TimeUpdateStatus)
 
 		rc.DurationNeutronDriver = tDriver.Sub(tNeutron)
 		rc.DurationDriverRPC = tRPC.Sub(tDriver)
+		rc.DurationDriverPortCreated = tPortCreated.Sub(tDriver)
 		rc.DurationRPCAgent = tAgent.Sub(tRPC)
 		rc.DurationAgentUpdateStatus = tUpdate.Sub(tAgent)
 		rc.DurationOperationTotal = tUpdate.Sub(tNeutron)
@@ -770,6 +793,11 @@ func TestCases() map[string][]string {
 			`2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2 [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] f5lbaasdriver.v2.bigip.driver_v2.LoadBalancerManager method create called with arguments (<neutron_lib.context.Context object at 0x284cb250>, <neutron_lbaas.services.loadbalancer.data_models.LoadBalancer object at 0xdb44250>) {} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66`,
 			// member
 			`2020-10-05 14:50:28.214 117812 DEBUG f5lbaasdriver.v2.bigip.driver_v2 [req-be08ea84-f721-46da-b24e-6e2c249af84e 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] f5lbaasdriver.v2.bigip.driver_v2.MemberManager method create called with arguments (<neutron_lib.context.Context object at 0x1310cc90>, <neutron_lbaas.services.loadbalancer.data_models.Member object at 0x286ed750>) {} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66`,
+		},
+
+		"create_port": []string{
+			// member create port
+			`2020-11-05 03:06:08.342 423178 DEBUG f5lbaasdriver.v2.bigip.driver_v2 [req-784572e6-4622-477e-8500-ab43539b86de a975df1b007d413c8ebc2e90d46232cf 0699110021c743249033aad76967f42f - default default] the port created here is: {'status': u'DOWN', 'binding:host_id': u'POD1_CORE', 'description': None, 'allowed_address_pairs': [], 'tags': [], 'extra_dhcp_opts': [], 'updated_at': '2020-11-04T19:06:07Z', 'device_owner': u'network:f5lbaasv2', 'revision_number': 3, 'port_security_enabled': False, 'binding:profile': {}, 'fixed_ips': [{'subnet_id': u'550ebc09-2836-4ead-adef-225dd849c426', 'ip_address': u'10.250.23.9'}], 'id': u'a3a775f4-a20f-450d-bfe9-514bc1592304', 'security_groups': [], 'device_id': u'502e2b95-247b-42b8-9bf5-bb1d5479cbd1', 'name': u'fake_pool_port_502e2b95-247b-42b8-9bf5-bb1d5479cbd1', 'admin_state_up': True, 'network_id': u'0f35109d-8620-4e46-882f-63f4b2e87163', 'tenant_id': u'94f2338bf383405db151c4784c0e358c', 'binding:vif_details': {}, 'binding:vnic_type': u'baremetal', 'binding:vif_type': 'binding_failed', 'qos_policy_id': None, 'mac_address': u'fa:16:3e:41:16:cb', 'project_id': u'94f2338bf383405db151c4784c0e358c', 'created_at': '2020-11-04T19:06:07Z'} create /usr/lib/python2.7/site-packages/f5lbaasdriver/v2/bigip/driver_v2.py:729`,
 		},
 
 		"rpc_f5agent": []string{
