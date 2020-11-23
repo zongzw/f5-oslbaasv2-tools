@@ -17,8 +17,14 @@ echo "Deleting members $prefix_mb..."
 echo "delete from lbaas_members where name like '$prefix_mb%';" | $pipe_suffix
 echo "Deleting l7policies $prefix_l7p..."
 echo "delete from lbaas_l7policies where name like '$prefix_l7p%';" | $pipe_suffix
+echo "Deleting sni ..."
+echo "delete from lbaas_sni where listener_id in \
+	(select id from lbaas_listeners where name like '$prefix_ls%');" | $pipe_suffix
 echo "Deleting listeners $prefix_ls..."
 echo "delete from lbaas_listeners where name like '$prefix_ls%';" | $pipe_suffix
+echo "Deleting sessionpersistence ..."
+echo "delete from lbaas_sessionpersistences where pool_id in \
+	(select id from lbaas_pools where name like '$prefix_pl%');" | $pipe_suffix
 echo "Deleting pools $prefix_pl..."
 echo "delete from lbaas_pools where name like '$prefix_pl%';" | $pipe_suffix
 echo "Deleting healthmonitors $prefix_hm..."
