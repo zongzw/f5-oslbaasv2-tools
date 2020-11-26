@@ -63,6 +63,8 @@ var (
 	cmdPrefix  = "neutron "
 
 	chsig = make(chan os.Signal)
+
+	maxCheckTimes = 64
 )
 
 func main() {
@@ -206,7 +208,7 @@ func WaitForLBToNotPending(cmdctx *CommandContext) error {
 		Command: fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName),
 	}
 
-	maxChkTries := 32
+	maxChkTries := maxCheckTimes
 	maxErrTries := 3
 	chkTried := 0
 	errTried := 0
@@ -343,6 +345,7 @@ func RunCmd(cmdctx *CommandContext) {
 // HandleArguments handle user's input.
 func HandleArguments() {
 	flag.StringVar(&output, "output-filepath", "/dev/stdout", "output the result")
+	flag.IntVar(&maxCheckTimes, "max-check-times", maxCheckTimes, "The max times for checking loadbalancer is ready for next step.")
 	flag.StringVar(&checkLB, "check-lb", "", "the loadbalancer name or id for checking execution status.")
 
 	flag.Usage = PrintUsage
