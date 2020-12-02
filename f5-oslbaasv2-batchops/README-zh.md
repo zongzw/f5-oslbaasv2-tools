@@ -33,7 +33,7 @@ Usage:
 
 Example:
 
-    ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --concurrency --output-filepath /dev/stdout \
+    ./f5-oslbaasv2-batchops/dist/f5-oslbaasv2-batchops-darwin-amd64 --output-filepath /dev/stdout \
     -- lbaas-loadbalancer-create --name lb%{x} %{y} \
     ++ x:1-5 y:private-subnet,public-subnet
 

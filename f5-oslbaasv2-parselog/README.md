@@ -36,14 +36,16 @@ For multiple-neutron-server environment, please keep the datetime are same(NTP s
 Run `f5-oslbaasv2-logtool --help` for help. 
 ```
 # ./f5-oslbaasv2-logtool --help
-Usage of ./f5-oslbaasv2-logtool:
+Usage of ./f5-oslbaasv2-parselog/dist/f5-oslbaasv2-parselog-darwin-amd64:
   -logpath value
-    	The log path for analytics. It can be used multiple times. Path regex pattern can be used WITHIN "".
-    	e.g: --logpath /path/to/f5-openstack-agent.log --logpath "/var/log/neutron/f5-openstack-*.log" --logpath /var/log/neutron/server\*.log
+        The log path for analytics. It can be used multiple times. Path regex pattern can be used WITHIN "".
+        e.g: --logpath /path/to/f5-openstack-agent.log --logpath "/var/log/neutron/f5-openstack-*.log" --logpath /var/log/neutron/server\*.log
+  -max-line-length int
+        Max line length in the parsing log. (default 524288)
   -output-filepath string
-    	Output the result to file, e.g: /path/to/result.csv
+        Output the result to file, e.g: /path/to/result.csv (default "./result.csv")
   -test
-    	Program self test option..
+        Program self test option..
 ```
 
 * --logpath supports regex file paths, however you should use '\\*'(shown above) to avoid path convertion by shell in front of execution of this program.
