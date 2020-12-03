@@ -3,7 +3,12 @@
 # This script is use to create multiple projects in OpenStack Project
 
 workdir=`cd $(dirname $0); pwd`
-source $workdir/batchops.conf
+if [ $# -ne 1 ] || [ ! -f $1 ]; then
+	echo "$0 <batchops.conf> or $1 not exists"
+	exit 1
+fi
+
+source $1
 
 which openstack > /dev/null
 if [ $? -ne 0 ]; then

@@ -14,15 +14,19 @@
 # Check the output(Execution Report) to see the 'Failed Command List:' and manually run them, so that
 # The later batch operations are not effected.
 
-workdir=`cd $(dirname $0); pwd`
-source $workdir/batchops.conf
+if [ $# -ne 1 ] || [ ! -f $1 ]; then
+	echo "$0 <batchops.conf> or $1 not exists"
+	exit 1
+fi
+
+source $1
+source $openrc
 
 dts=`date +%Y-%m-%d-%H-%M-%S`
-source $openrc
 
 # create loadbalancer
 $batchbin --max-check-times 4096 --output-filepath $output_dir/create_lb_$dts.json --check-lb $prefix_lb%{pjrange}-%{lbrange} \
-    -- --os-project-name $prefix_proj%{pjrange} lbaas-loadbalancer-create --name $prefix_lb%{pjrange}-%{lbrange} %{subnet} \
+    -- --os-project-name $prefix_proj%{pjrange} lbaas-loadbalancer-create --provider $provider --name $prefix_lb%{pjrange}-%{lbrange} %{subnet} \
     ++ pjrange:$pjrange lbrange:$lbrange subnet:$subnet
 
 # create pool
