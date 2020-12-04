@@ -2,10 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"reflect"
@@ -54,6 +58,7 @@ type RequestContext struct {
 	TimeRPC          string `json:"time_rpc"`
 	TimeF5Agent      string `json:"time_f5agent"`
 	TimeUpdateStatus string `json:"time_update_status"`
+	TimestampELK     string `json:"@timestamp" my:"noprint"`
 
 	// access dbv2  analytics metrics
 	TmpDBBeginTime string `json:"time_db_begin" my:"noprint"`
@@ -80,6 +85,7 @@ type RequestContext struct {
 var (
 	logger         = log.New(os.Stdout, "", log.LstdFlags)
 	outputFilePath = "./result.csv"
+	outputELK      = ""
 
 	pBasicFields = map[string]string{
 		"UUID":      `[a-z0-9]{8}-([a-z0-9]{4}-){3}[a-z0-9]{12}`, // 6245c77d-5017-4657-b35b-7ab1d247112b
@@ -267,6 +273,7 @@ func main() {
 			"--logpath /var/log/neutron/server\\*.log")
 	flag.StringVar(&outputFilePath, "output-filepath", outputFilePath,
 		"Output the result to file, e.g: /path/to/result.csv")
+	flag.StringVar(&outputELK, "output-elk", "", "Output[POST] the result to ELK system: http://1.2.3.4:20003")
 	// TODO: output result to f5 telemetry analytics.
 	// flag.StringVar(&output_ts, "output-ts", "./result.json",
 	// 	"Output the result to f5-telemetry-analytics. e.g: http://1.1.1.1:200002")
@@ -500,8 +507,38 @@ func Read(f *os.File) {
 	totalLines = totalLines + lines
 }
 
-// OutputResult output the ResultMap to file.
+// OutputResultToELK Output the result to ELK endpoint if set.
+func OutputResultToELK() {
+	if outputELK == "" {
+		return
+	}
+
+	elk, err := url.Parse(outputELK)
+	port := ""
+	if strings.Index(elk.Host, ":") == -1 {
+		port = ":20003"
+	}
+
+	timeout := 10 * time.Second
+	_, err = net.DialTimeout("tcp", fmt.Sprintf("%s%s", elk.Host, port), timeout)
+	if err != nil {
+		logger.Fatalf("Site unreachable, error: %s", err)
+	}
+
+	for _, v := range ResultMap {
+		jd, _ := json.Marshal(v)
+		_, err := http.Post(outputELK, "application/json", bytes.NewReader(jd))
+		if err != nil {
+			logger.Printf("Failed to post %s: %s", jd, err)
+		}
+	}
+}
+
+// OutputResult output the ResultMap to file and ELK if set.
 func OutputResult(filepath string) {
+
+	OutputResultToELK()
+
 	fw, e := os.Create(filepath)
 	if e != nil {
 		logger.Fatal(e)
@@ -686,6 +723,9 @@ func CalculateDuration() {
 		tAgent := FKTheTime(rc.TimeF5Agent)
 		tUpdate := FKTheTime(rc.TimeUpdateStatus)
 
+		rc.TimestampELK = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+			tNeutron.Year(), tNeutron.Month(), tNeutron.Day(),
+			tNeutron.Hour(), tNeutron.Minute(), tNeutron.Second(), tNeutron.Nanosecond()/1e6)
 		rc.DurationNeutronDriver = tDriver.Sub(tNeutron)
 		rc.DurationDriverRPC = tRPC.Sub(tDriver)
 		rc.DurationDriverPortCreated = tPortCreated.Sub(tDriver)

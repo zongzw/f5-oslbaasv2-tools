@@ -103,11 +103,15 @@
             //     "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-784572e6-4622-477e-8500-ab43539b86de.log",
             //     "--output-filepath", "./output/test.csv"
             // ]
-            "args": [ // find delete neutron.api.v2.base not match issue 
-                "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f-delete.log",
+            // "args": [ // find delete neutron.api.v2.base not match issue 
+            //     "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f-delete.log",
+            //     "--output-filepath", "./output/test.csv"
+            // ]
+            "args": [ // test output elk
+                "--logpath", "${workspaceFolder}/f5-oslbaasv2-parselog/tests/req-d6af6e14-930c-486f-9403-c1792119986e.log",
+                "--output-elk", "http://10.145.74.87:20003",
                 "--output-filepath", "./output/test.csv"
             ]
-            
             // "args": [
             //     "--test"
             // ]
