@@ -49,6 +49,8 @@ type RequestContext struct {
 	RequestBody   string `json:"request_body"`
 	ObjectType    string `json:"object_type"`
 	OperationType string `json:"operation_type"`
+	UserID        string `json:"user_id"`
+	TenantID      string `json:"tenant_id"`
 
 	// phrase timestamp
 	TimeNeutronAPI   string `json:"time_neutron_api"`
@@ -106,9 +108,11 @@ var (
 		// [req-8cadad28-8315-45ca-818c-6a229dfb73e1 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body:
 		// {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		// prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713
+
+		// %(user)s %(tenant)s %(domain)s %(user_domain)s %(project_domain)s
 		"neutron_api_v2_base": MatchHandler{
 			KeyString: "neutron.api.v2.base",
-			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`Request body: %{JSON:request_body} prepare_request_body .*$`,
 			Function: nil,
 		},
