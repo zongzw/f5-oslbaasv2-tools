@@ -15,6 +15,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 // StringArray array of string
@@ -28,6 +31,7 @@ type ArrayOps interface {
 // NeutronResponse represent neutron command's response
 type NeutronResponse struct {
 	ID                 string `json:"id"`
+	Name               string `json:"name"`
 	ProvisioningStatus string `json:"provisioning_status"`
 }
 
@@ -58,6 +62,12 @@ var (
 	output     string
 	checkLB    string
 	outputFile *os.File
+	dbUsername string
+	dbPassword string
+	dbDBName   string
+	dbHostname string
+	dbPort     string
+	dbConn     *gorm.DB
 
 	cmdResults = []CommandContext{}
 	cmdPrefix  = "neutron "
@@ -71,6 +81,7 @@ func main() {
 
 	HandleArguments()
 
+	ProvisioningStatusOfName("loadbalancer", "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf")
 	signal.Notify(chsig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 	go signalProcess()
 
@@ -180,6 +191,34 @@ func RunCmds() {
 		}
 		cmdResults = append(cmdResults, cmdctx)
 	}
+}
+
+// ProvisioningStatusOfName get object provisioning status
+func ProvisioningStatusOfName(objectType string, objectName string) (string, error) {
+	table := "unknown"
+	switch objectType {
+	case "loadbalancer":
+		table = "lbaas_loadbalancers"
+	case "pool":
+		table = "lbaas_pools"
+	case "listener":
+		table = "lbaas_listeners"
+	case "healthmonitor":
+		table = "lbaas_healthmonitors"
+	case "member":
+		table = "lbaas_members"
+	case "l7policy":
+		table = "lbaas_l7policies"
+	}
+
+	entry := []NeutronResponse{}
+	rlt := dbConn.Table(table).Where("id = ?", objectName).Find(&entry)
+	if rlt.Error != nil {
+
+	}
+	logger.Print(rlt.RowsAffected)
+
+	return "", nil
 }
 
 // WaitForLBToNotPending check the loadbalancer is not pending.
@@ -347,9 +386,23 @@ func HandleArguments() {
 	flag.StringVar(&output, "output-filepath", "/dev/stdout", "output the result")
 	flag.IntVar(&maxCheckTimes, "max-check-times", maxCheckTimes, "The max times for checking loadbalancer is ready for next step.")
 	flag.StringVar(&checkLB, "check-lb", "", "the loadbalancer name or id for checking execution status.")
+	flag.StringVar(&dbUsername, "db-username", "", "database username")
+	flag.StringVar(&dbPassword, "db-password", "", "database password")
+	flag.StringVar(&dbDBName, "db-dbname", "", "database name")
+	flag.StringVar(&dbHostname, "db-hostname", "", "database hostanme")
+	flag.StringVar(&dbPort, "db-tcpport", "", "database port")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
+
+	if dbUsername != "" && dbPassword != "" && dbDBName != "" && dbHostname != "" && dbPort != "" {
+		dbstr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbUsername, dbPassword, dbHostname, dbPort, dbDBName)
+		conn, err := gorm.Open(mysql.Open(dbstr), &gorm.Config{})
+		if err != nil {
+			logger.Fatal(err)
+		}
+		dbConn = conn
+	}
 
 	logger.Printf("output to: %s", output)
 
