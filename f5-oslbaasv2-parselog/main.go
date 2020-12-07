@@ -534,8 +534,8 @@ func OutputResultToELK() {
 	for _, v := range ResultMap {
 		count++
 		jd, _ := json.Marshal(v)
-		_, err := http.Post(outputELK, "application/json", bytes.NewReader(jd))
-		if err != nil {
+		resp, err := http.Post(outputELK, "application/json", bytes.NewReader(jd))
+		if err != nil || int(resp.StatusCode/200) != 1 {
 			logger.Printf("Failed to post %s: %s", jd, err)
 		}
 	}
