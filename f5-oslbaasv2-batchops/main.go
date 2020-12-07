@@ -81,7 +81,7 @@ func main() {
 
 	HandleArguments()
 
-	ProvisioningStatusOfName("loadbalancer", "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf")
+	// ProvisioningStatusOfName("loadbalancer", "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf")
 	signal.Notify(chsig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 	go signalProcess()
 

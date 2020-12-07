@@ -517,6 +517,7 @@ func OutputResultToELK() {
 		return
 	}
 
+	logger.Printf("Sending metrics to %s ...", outputELK)
 	elk, err := url.Parse(outputELK)
 	port := ""
 	if strings.Index(elk.Host, ":") == -1 {
@@ -529,13 +530,17 @@ func OutputResultToELK() {
 		logger.Fatalf("Site unreachable, error: %s", err)
 	}
 
+	count := 0
 	for _, v := range ResultMap {
+		count++
 		jd, _ := json.Marshal(v)
 		_, err := http.Post(outputELK, "application/json", bytes.NewReader(jd))
 		if err != nil {
 			logger.Printf("Failed to post %s: %s", jd, err)
 		}
 	}
+
+	logger.Printf("Metric count: %d", count)
 }
 
 // OutputResult output the ResultMap to file and ELK if set.
