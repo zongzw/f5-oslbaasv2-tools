@@ -37,18 +37,15 @@ type NeutronResponse struct {
 
 // CommandContext saved command information and analytics data.
 type CommandContext struct {
-	Seq         int           `json:"seqnum"`
-	Command     string        `json:"command"`
-	RawOut      string        `json:"output"`
-	Err         string        `json:"error"`
-	ExitCode    int           `json:"exitcode"`
-	CmdDuration time.Duration `json:"cmd_duration"`
-	Check       struct {
-		Result   string          `json:"check_status"`
-		Duration time.Duration   `json:"check_duration"`
-		LBIDName string          `json:"check_loadbalancer"`
-		ShowResp NeutronResponse `json:"check_lb_result"`
-	} `json:"check"`
+	Seq           int           `json:"seqnum"`
+	Command       string        `json:"command"`
+	RawOut        string        `json:"output"`
+	Err           string        `json:"error"`
+	ExitCode      int           `json:"exitcode"`
+	Duration      time.Duration `json:"duration"`
+	ResourceType  string        `json:"resource_type"`
+	OperationType string        `json:"operation_type"`
+	LoadBalancer  string        `json:"loadbalancer"`
 }
 
 var (
@@ -69,7 +66,7 @@ var (
 	dbPort     string
 	dbConn     *gorm.DB
 
-	cmdResults = []CommandContext{}
+	cmdResults = []*CommandContext{}
 	cmdPrefix  = "neutron "
 
 	chsig = make(chan os.Signal)
@@ -81,7 +78,6 @@ func main() {
 
 	HandleArguments()
 
-	// ProvisioningStatusOfName("loadbalancer", "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf")
 	signal.Notify(chsig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 	go signalProcess()
 
@@ -105,7 +101,7 @@ func main() {
 	}
 	logger.Printf("neutron command: %s", neutron)
 
-	RunCmds()
+	ExecuteNeutronCommands()
 	WriteResult()
 	PrintReport()
 }
@@ -140,8 +136,8 @@ func PrintReport() {
 	fmt.Println("---------------------- Execution Report ----------------------")
 	fmt.Println()
 	for _, n := range cmdResults {
-		fmt.Printf("%d: %s | Exited: %d | Checked: %s | duration: %d ms\n",
-			n.Seq, n.Command, n.ExitCode, n.Check.Result, n.Check.Duration.Milliseconds())
+		fmt.Printf("%d: %s | Exited: %d | duration: %d ms\n",
+			n.Seq, n.Command, n.ExitCode, n.Duration.Milliseconds())
 	}
 	fmt.Println()
 	fmt.Println("Failed Command List:")
@@ -155,209 +151,15 @@ func PrintReport() {
 	fmt.Println()
 }
 
-// RunCmds Execute the generated commands analyze result.
-func RunCmds() {
-	for i, n := range cmdList {
-		lbAndCmd := strings.Split(n, "|")
-
-		fullCmd := fmt.Sprintf("%s%s", cmdPrefix, lbAndCmd[1])
-
-		cmdctx := CommandContext{
-			Seq:     i + 1,
-			Command: fullCmd,
-		}
-		cmdctx.Check.LBIDName = lbAndCmd[0]
-
-		logger.Println()
-		logger.Printf("Command(%d/%d): Prepare to run '%s'", i+1, len(cmdList), fullCmd)
-		if err := WaitForLBToNotPending(&cmdctx); err != nil {
-			logger.Printf("Command(%d/%d): Not ready to run  this command: %s", i+1, len(cmdList), err.Error())
-			return
-		}
-
-		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), fullCmd)
-		RunCmd(&cmdctx)
-
-		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms",
-			cmdctx.Seq, len(cmdList), cmdctx.ExitCode, cmdctx.CmdDuration.Milliseconds())
-		time.Sleep(time.Duration(1) * time.Second)
-
-		// check the command execution.
-		if cmdctx.ExitCode == 0 {
-			// Temporarily not check the result.
-			//CheckLBStatus(&cmdctx)
-		} else {
-			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
-		}
-		cmdResults = append(cmdResults, cmdctx)
-	}
-}
-
-// ProvisioningStatusOfName get object provisioning status
-func ProvisioningStatusOfName(objectType string, objectName string) (string, error) {
-	table := "unknown"
-	switch objectType {
-	case "loadbalancer":
-		table = "lbaas_loadbalancers"
-	case "pool":
-		table = "lbaas_pools"
-	case "listener":
-		table = "lbaas_listeners"
-	case "healthmonitor":
-		table = "lbaas_healthmonitors"
-	case "member":
-		table = "lbaas_members"
-	case "l7policy":
-		table = "lbaas_l7policies"
-	}
-
-	entry := []NeutronResponse{}
-	rlt := dbConn.Table(table).Where("id = ?", objectName).Find(&entry)
-	if rlt.Error != nil {
-
-	}
-	logger.Print(rlt.RowsAffected)
-
-	return "", nil
-}
-
-// WaitForLBToNotPending check the loadbalancer is not pending.
-func WaitForLBToNotPending(cmdctx *CommandContext) error {
-
-	logPrefix := fmt.Sprintf("Command(%d/%d):", cmdctx.Seq, len(cmdList))
-	args := strings.Split(cmdctx.Command, " ")
-	subcmd := ""
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "lbaas-") {
-			subcmd = arg
-			break
-		}
-	}
-	subs := strings.Split(subcmd, "-")
-	resourceType, operation := subs[1], subs[2]
-	if operation == "show" || operation == "list" {
-		return nil
-	} else if resourceType == "loadbalancer" && operation == "create" {
-		return nil
-	}
-
-	logger.Printf("%s Confirm %s is not pending", logPrefix, cmdctx.Check.LBIDName)
-
-	chkctx := CommandContext{
-		Command: fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName),
-	}
-
-	maxChkTries := maxCheckTimes
-	maxErrTries := 3
-	chkTried := 0
-	errTried := 0
-	for ; chkTried < maxChkTries; chkTried++ {
-		RunCmd(&chkctx)
-		if chkctx.ExitCode != 0 {
-			logger.Printf("%s Checking loadbalancer(%s) status failed: %s",
-				logPrefix, cmdctx.Check.LBIDName, chkctx.Err)
-			errTried++
-			if errTried >= maxErrTries {
-				return fmt.Errorf("Check loadbalancer %s status for %d times, last failure: %s",
-					cmdctx.Check.LBIDName, maxErrTries, chkctx.Err)
-			}
-		} else {
-			errTried = 0
-		}
-
-		var resp NeutronResponse
-		_ = json.Unmarshal([]byte(chkctx.RawOut), &resp)
-
-		logger.Printf("%s Checked loadbalancer %s status %s",
-			logPrefix, cmdctx.Check.LBIDName, resp.ProvisioningStatus)
-
-		if strings.HasPrefix(resp.ProvisioningStatus, "PENDING_") {
-			time.Sleep(time.Duration(1) * time.Second)
-			continue
-		} else {
-			return nil
-		}
-	}
-
-	if chkTried >= maxChkTries {
-		return fmt.Errorf("Tried %d times to get LB status, still PENDING", maxChkTries)
-	}
-
-	return fmt.Errorf("Error happens in WaitForLBToNotPending, should not reach here")
-}
-
-// CheckLBStatus check the loadbalancer status after a commmand execution.
-func CheckLBStatus(cmdctx *CommandContext) {
-	args := strings.Split(cmdctx.Command, " ")
-	subcmd := ""
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "lbaas-") {
-			subcmd = arg
-		}
-	}
-	subs := strings.Split(subcmd, "-")
-	resourceType, operation := subs[1], subs[2]
-
-	fs := time.Now()
-	if operation == "create" || operation == "update" || operation == "delete" {
-		if cmdctx.Check.LBIDName == "" {
-			logger.Printf("Command(%d/%d): No loadbalancer appointed, no check to do.", cmdctx.Seq, len(cmdList))
-			cmdctx.Check.Result = fmt.Sprintf("No loadbalancer appointed, no check to do.")
-		} else if resourceType == "loadbalancer" && operation == "delete" {
-			logger.Printf("Command(%d/%d): Loadbalancer deleted, no check to do.", cmdctx.Seq, len(cmdList))
-			cmdctx.Check.Result = fmt.Sprintf("loadbalancer deleted, no check to do.")
-		} else {
-			checkCmd := fmt.Sprintf("neutron lbaas-loadbalancer-show %s", cmdctx.Check.LBIDName)
-			logger.Printf("Command(%d/%d): Check with command: '%s'", cmdctx.Seq, len(cmdList), checkCmd)
-			chkctx := CommandContext{
-				Command: checkCmd,
-			}
-			maxTries := 32
-			tried := 0
-			for ; tried < maxTries; tried++ {
-				RunCmd(&chkctx)
-				if chkctx.ExitCode != 0 {
-					logger.Printf("Command(%d/%d): Checked loadbalancer %s Failed: %s",
-						cmdctx.Seq, len(cmdList), cmdctx.Check.LBIDName, chkctx.Err)
-					cmdctx.Check.Result = fmt.Sprintf("Failed to check execution of %s: %s", cmdctx.Command, chkctx.Err)
-					break
-				}
-
-				_ = json.Unmarshal([]byte(chkctx.RawOut), &cmdctx.Check.ShowResp)
-				resp := cmdctx.Check.ShowResp
-				logger.Printf("Command(%d/%d): Checked loadbalancer %s is %s",
-					cmdctx.Seq, len(cmdList), cmdctx.Check.LBIDName, resp.ProvisioningStatus)
-				if strings.HasPrefix(resp.ProvisioningStatus, "PENDING_") {
-					time.Sleep(time.Duration(1) * time.Second)
-					continue
-				} else {
-					cmdctx.Check.Result = fmt.Sprintf("LB: %s %s", resp.ID, resp.ProvisioningStatus)
-					break
-				}
-			}
-			if tried >= maxTries {
-				cmdctx.Check.Result = fmt.Sprintf("LB: %s left PENDING", cmdctx.Check.LBIDName)
-			}
-		}
-	} else { // 'show' 'list' no need to check
-		cmdctx.Check.Result = fmt.Sprintf("%s done", subcmd)
-	}
-	fe := time.Now()
-
-	cmdctx.Check.Duration = fe.Sub(fs) + cmdctx.CmdDuration
-	logger.Printf("Command(%d/%d): Checked time: %d ms", cmdctx.Seq, len(cmdList), cmdctx.Check.Duration.Milliseconds())
-}
-
-// RunCmd run the command and fill CommandResult body
-func RunCmd(cmdctx *CommandContext) {
+// Execute will execute neutron lbaas-xxxx command and fill with result.
+func (cmdctx *CommandContext) Execute() {
 	cmdArgs := strings.Split(cmdctx.Command, " ")
 	cmdArgs = append(cmdArgs, "--format", "json")
 	var out, err bytes.Buffer
-	// c := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(30)*time.Minute)
+	timeoutctx, cancel := context.WithTimeout(context.Background(), time.Duration(30)*time.Minute)
 	defer cancel()
-	c := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+	c := exec.CommandContext(timeoutctx, cmdArgs[0], cmdArgs[1:]...)
 
 	c.Env = os.Environ()
 	c.Stdout = &out
@@ -378,7 +180,204 @@ func RunCmd(cmdctx *CommandContext) {
 	cmdctx.Err = err.String()
 	fe := time.Now()
 	cmdctx.ExitCode = c.ProcessState.ExitCode()
-	cmdctx.CmdDuration = fe.Sub(fs)
+	cmdctx.Duration = fe.Sub(fs)
+}
+
+// NewCommandContext ...
+func NewCommandContext(commandline string) *CommandContext {
+	lbAndCmd := strings.Split(commandline, "|")
+
+	fullCmd := fmt.Sprintf("%s%s", cmdPrefix, lbAndCmd[1])
+
+	cmdctx := CommandContext{
+		Command: fullCmd,
+	}
+	cmdctx.LoadBalancer = lbAndCmd[0]
+
+	args := strings.Split(cmdctx.Command, " ")
+	subcmd := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "lbaas-") {
+			subcmd = arg
+			break
+		}
+	}
+	subs := strings.Split(subcmd, "-")
+	cmdctx.ResourceType = subs[1]
+	cmdctx.OperationType = subs[2]
+
+	return &cmdctx
+}
+
+// ExecuteNeutronCommands Execute the generated commands analyze result.
+func ExecuteNeutronCommands() {
+	for i, n := range cmdList {
+		cmdctx := NewCommandContext(n)
+		cmdctx.Seq = i + 1
+
+		logger.Println()
+		logger.Printf("Command(%d/%d): Prepare to run '%s'", i+1, len(cmdList), cmdctx.Command)
+		if err := cmdctx.WaitForReady(); err != nil {
+			logger.Printf("Command(%d/%d): Not ready to run this command: %s", i+1, len(cmdList), err.Error())
+			return
+		}
+
+		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), cmdctx.Command)
+		// ExecuteNeutronCommand(cmdctx)
+		cmdctx.Execute()
+
+		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms",
+			cmdctx.Seq, len(cmdList), cmdctx.ExitCode, cmdctx.Duration.Milliseconds())
+		time.Sleep(time.Duration(1) * time.Second)
+
+		// check the command execution.
+		if cmdctx.ExitCode == 0 {
+			// Temporarily not check the result.
+			//CheckLBStatus(&cmdctx)
+		} else {
+			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
+		}
+		cmdResults = append(cmdResults, cmdctx)
+	}
+}
+
+// ProvisioningStatusOf get object provisioning status
+func ProvisioningStatusOf(objectType string, objectIDName string, isID bool) (string, error) {
+	table := "unknown"
+	switch objectType {
+	case "loadbalancer":
+		table = "lbaas_loadbalancers"
+	case "pool":
+		table = "lbaas_pools"
+	case "listener":
+		table = "lbaas_listeners"
+	case "healthmonitor":
+		table = "lbaas_healthmonitors"
+	case "member":
+		table = "lbaas_members"
+	case "l7policy":
+		table = "lbaas_l7policies"
+	}
+
+	entries := []NeutronResponse{}
+	tag := "id"
+	if !isID {
+		tag = "name"
+	}
+	rlt := dbConn.Table(table).Where(fmt.Sprintf("%s = ?", tag), objectIDName).Find(&entries)
+	if rlt.Error != nil {
+		return "", rlt.Error
+	}
+	if rlt.RowsAffected != 1 {
+		return "", fmt.Errorf("%s %s has %d records", objectType, objectIDName, rlt.RowsAffected)
+	}
+
+	return entries[0].ProvisioningStatus, nil
+}
+
+// LBStatusFromCmd ...
+func LBStatusFromCmd(lbIDName string) (string, error) {
+	chkctx := CommandContext{
+		Command: fmt.Sprintf("neutron lbaas-loadbalancer-show %s", lbIDName),
+	}
+	chkctx.Execute()
+	if chkctx.ExitCode != 0 {
+		return "", fmt.Errorf("%s", chkctx.Err)
+	}
+
+	var resp NeutronResponse
+	_ = json.Unmarshal([]byte(chkctx.RawOut), &resp)
+
+	return resp.ProvisioningStatus, nil
+}
+
+// LBStatusFromDB ...
+func LBStatusFromDB(lbIDname string) (string, error) {
+	isID, _ := regexp.MatchString(`[0-9z-z\-]{36}`, lbIDname)
+	return ProvisioningStatusOf("loadbalancer", lbIDname, isID)
+}
+
+// WaitForReady check the loadbalancer is not pending.
+func (cmdctx *CommandContext) WaitForReady() error {
+
+	logPrefix := fmt.Sprintf("Command(%d/%d):", cmdctx.Seq, len(cmdList))
+
+	if cmdctx.OperationType == "show" || cmdctx.OperationType == "list" ||
+		(cmdctx.ResourceType == "loadbalancer" && cmdctx.OperationType == "create") {
+		return nil
+	}
+
+	logger.Printf("%s Confirm %s is not pending", logPrefix, cmdctx.LoadBalancer)
+
+	maxErrTries := 3
+	errTried := 0
+	for retries := maxCheckTimes; retries > 0; retries-- {
+		status, err := LBStatusFromCmd(cmdctx.LoadBalancer)
+		if err != nil {
+			logger.Printf("%s Checking loadbalancer(%s) status failed: %s",
+				logPrefix, cmdctx.LoadBalancer, err.Error())
+			errTried++
+			if errTried >= maxErrTries {
+				return fmt.Errorf("Loadbalancer %s status check fails for %d times, last failure: %s",
+					cmdctx.LoadBalancer, maxErrTries, err.Error())
+			}
+		} else {
+			errTried = 0
+		}
+
+		logger.Printf("%s Checked loadbalancer %s status %s",
+			logPrefix, cmdctx.LoadBalancer, status)
+
+		if strings.HasPrefix(status, "PENDING_") {
+			time.Sleep(time.Duration(1) * time.Second)
+			continue
+		} else {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("Loadbalancer %s is still PENDING after %d times' check", cmdctx.LoadBalancer, maxCheckTimes)
+}
+
+// Done ...
+func (cmdctx *CommandContext) Done() (bool, error) {
+	fs := time.Now()
+	defer func() {
+		fe := time.Now()
+		logger.Printf("Command(%d/%d): Checked time: %d ms", cmdctx.Seq, len(cmdList), fe.Sub(fs).Milliseconds())
+	}()
+
+	if cmdctx.OperationType == "create" || cmdctx.OperationType == "update" || cmdctx.OperationType == "delete" {
+		if cmdctx.LoadBalancer == "" {
+			logger.Printf("Command(%d/%d): No loadbalancer appointed, no check to do.", cmdctx.Seq, len(cmdList))
+			return true, nil
+		} else if cmdctx.ResourceType == "loadbalancer" && cmdctx.OperationType == "delete" {
+			logger.Printf("Command(%d/%d): Loadbalancer deleted, no check to do.", cmdctx.Seq, len(cmdList))
+			return true, nil
+		} else {
+			logger.Printf("Command(%d/%d): Check loadbalancer %s status", cmdctx.Seq, len(cmdList), cmdctx.LoadBalancer)
+			for maxTries := 32; maxTries > 0; maxTries-- {
+				status, err := LBStatusFromCmd(cmdctx.LoadBalancer)
+				if err != nil {
+					logger.Printf("Command(%d/%d): Checked loadbalancer %s Failed: %s",
+						cmdctx.Seq, len(cmdList), cmdctx.LoadBalancer, err.Error())
+					break
+				}
+
+				logger.Printf("Command(%d/%d): Loadbalancer %s staus is %s",
+					cmdctx.Seq, len(cmdList), cmdctx.LoadBalancer, status)
+				if strings.HasPrefix(status, "PENDING_") {
+					time.Sleep(time.Duration(1) * time.Second)
+					continue
+				} else {
+					return true, nil
+				}
+			}
+			return false, fmt.Errorf("LB: %s left PENDING", cmdctx.LoadBalancer)
+		}
+	} else { // 'show' 'list' no need to check
+		return true, nil
+	}
 }
 
 // HandleArguments handle user's input.
