@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -39,6 +40,7 @@ type NeutronResponse struct {
 type CommandContext struct {
 	Seq           int           `json:"seqnum"`
 	Command       string        `json:"command"`
+	ObjectID      string        `json:"object_id"`
 	RawOut        string        `json:"output"`
 	Err           string        `json:"error"`
 	ExitCode      int           `json:"exitcode"`
@@ -56,15 +58,11 @@ var (
 	varRegexp = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
 	cmdList   = []string{}
 
-	output     string
-	checkLB    string
-	outputFile *os.File
-	dbUsername string
-	dbPassword string
-	dbDBName   string
-	dbHostname string
-	dbPort     string
-	dbConn     *gorm.DB
+	outputFilePath string
+	checkLB        string
+	outputFile     *os.File
+	mysqluri       string
+	dbConn         *gorm.DB = nil
 
 	cmdResults = []*CommandContext{}
 	cmdPrefix  = "neutron "
@@ -81,15 +79,6 @@ func main() {
 	signal.Notify(chsig, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
 	go signalProcess()
 
-	if output != "/dev/stdout" {
-		of, e := os.OpenFile(output, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
-		if e != nil {
-			logger.Fatalf("Failed to open file %s for writing.", e.Error())
-		}
-		outputFile = of
-		defer outputFile.Close()
-	}
-
 	if !strings.Contains(strings.Join(os.Environ(), ","), "OS_USERNAME=") {
 		fmt.Println("No OS_USERNAME environment found. Execute `source <path/to/openrc>` first!")
 		os.Exit(1)
@@ -99,7 +88,7 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	logger.Printf("neutron command: %s", neutron)
+	logger.Printf("%20s: %s", "Neutron Command", neutron)
 
 	ExecuteNeutronCommands()
 	WriteResult()
@@ -108,24 +97,22 @@ func main() {
 
 func signalProcess() {
 	<-chsig
+	logger.Printf("Signal received, quit. Partial results are output to %s", outputFilePath)
 	WriteResult()
 	PrintReport()
 
-	logger.Printf("Signal received, quit. Partial results are output to %s", output)
 	os.Exit(0)
 }
 
 // WriteResult to files
 func WriteResult() {
+	defer outputFile.Close()
+
 	jd, _ := json.MarshalIndent(cmdResults, "", "  ")
-	if output != "/dev/stdout" {
-		n, e := outputFile.WriteString(string(jd))
-		logger.Printf("Writen executions to file %s: data-len:%d", output, n)
-		if e != nil {
-			logger.Fatalf("Error happens while writing: %s", e.Error())
-		}
-	} else {
-		fmt.Printf("%s\n", string(jd))
+	n, e := outputFile.WriteString(string(jd))
+	logger.Printf("Writen executions to file %s: data-len:%d", outputFilePath, n)
+	if e != nil {
+		logger.Fatalf("Error happens while writing: %s", e.Error())
 	}
 }
 
@@ -175,6 +162,10 @@ func (cmdctx *CommandContext) Execute() {
 			err.WriteString(e.Error())
 		} else {
 			cmdctx.RawOut = out.String()
+			var resp NeutronResponse
+			if json.Unmarshal(out.Bytes(), &resp) == nil {
+				cmdctx.ObjectID = resp.ID
+			}
 		}
 	}
 	cmdctx.Err = err.String()
@@ -223,7 +214,6 @@ func ExecuteNeutronCommands() {
 		}
 
 		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), cmdctx.Command)
-		// ExecuteNeutronCommand(cmdctx)
 		cmdctx.Execute()
 
 		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms",
@@ -232,8 +222,7 @@ func ExecuteNeutronCommands() {
 
 		// check the command execution.
 		if cmdctx.ExitCode == 0 {
-			// Temporarily not check the result.
-			//CheckLBStatus(&cmdctx)
+			// cmdctx.WaitForDone()
 		} else {
 			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
 		}
@@ -241,8 +230,8 @@ func ExecuteNeutronCommands() {
 	}
 }
 
-// ProvisioningStatusOf get object provisioning status
-func ProvisioningStatusOf(objectType string, objectIDName string, isID bool) (string, error) {
+// DBProvisioningStatusOf get object provisioning status
+func DBProvisioningStatusOf(objectType string, objectIDName string, isID bool) (string, error) {
 	table := "unknown"
 	switch objectType {
 	case "loadbalancer":
@@ -293,8 +282,8 @@ func LBStatusFromCmd(lbIDName string) (string, error) {
 
 // LBStatusFromDB ...
 func LBStatusFromDB(lbIDname string) (string, error) {
-	isID, _ := regexp.MatchString(`[0-9z-z\-]{36}`, lbIDname)
-	return ProvisioningStatusOf("loadbalancer", lbIDname, isID)
+	isID, _ := regexp.MatchString(`[0-9a-f\-]{36}`, lbIDname)
+	return DBProvisioningStatusOf("loadbalancer", lbIDname, isID)
 }
 
 // WaitForReady check the loadbalancer is not pending.
@@ -312,7 +301,14 @@ func (cmdctx *CommandContext) WaitForReady() error {
 	maxErrTries := 3
 	errTried := 0
 	for retries := maxCheckTimes; retries > 0; retries-- {
-		status, err := LBStatusFromCmd(cmdctx.LoadBalancer)
+		var status string
+		var err error
+		if dbConn != nil {
+			status, err = LBStatusFromDB(cmdctx.LoadBalancer)
+		} else {
+			status, err = LBStatusFromCmd(cmdctx.LoadBalancer)
+		}
+
 		if err != nil {
 			logger.Printf("%s Checking loadbalancer(%s) status failed: %s",
 				logPrefix, cmdctx.LoadBalancer, err.Error())
@@ -339,8 +335,8 @@ func (cmdctx *CommandContext) WaitForReady() error {
 	return fmt.Errorf("Loadbalancer %s is still PENDING after %d times' check", cmdctx.LoadBalancer, maxCheckTimes)
 }
 
-// Done ...
-func (cmdctx *CommandContext) Done() (bool, error) {
+// WaitForDone ...
+func (cmdctx *CommandContext) WaitForDone() (bool, error) {
 	fs := time.Now()
 	defer func() {
 		fe := time.Now()
@@ -356,8 +352,29 @@ func (cmdctx *CommandContext) Done() (bool, error) {
 			return true, nil
 		} else {
 			logger.Printf("Command(%d/%d): Check loadbalancer %s status", cmdctx.Seq, len(cmdList), cmdctx.LoadBalancer)
-			for maxTries := 32; maxTries > 0; maxTries-- {
-				status, err := LBStatusFromCmd(cmdctx.LoadBalancer)
+			for maxTries := maxCheckTimes; maxTries > 0; maxTries-- {
+				var status string
+				var err error
+
+				// Check created object's status
+				if dbConn != nil && cmdctx.ObjectID != "" {
+					status, err = DBProvisioningStatusOf(cmdctx.ResourceType, cmdctx.ObjectID, true)
+					if err != nil {
+						logger.Printf("Command(%d/%d): Failed to fetch object %s status: %s",
+							cmdctx.Seq, len(cmdList), cmdctx.ObjectID, err.Error())
+						break
+					} else if strings.HasPrefix(status, "PENDING_") {
+						time.Sleep(time.Duration(1) * time.Second)
+						continue
+					}
+				}
+
+				// Check belonged loadbalancer's status
+				if dbConn != nil {
+					status, err = LBStatusFromDB(cmdctx.LoadBalancer)
+				} else {
+					status, err = LBStatusFromCmd(cmdctx.LoadBalancer)
+				}
 				if err != nil {
 					logger.Printf("Command(%d/%d): Checked loadbalancer %s Failed: %s",
 						cmdctx.Seq, len(cmdList), cmdctx.LoadBalancer, err.Error())
@@ -382,28 +399,34 @@ func (cmdctx *CommandContext) Done() (bool, error) {
 
 // HandleArguments handle user's input.
 func HandleArguments() {
-	flag.StringVar(&output, "output-filepath", "/dev/stdout", "output the result")
+	flag.StringVar(&outputFilePath, "output-filepath", "/dev/stdout", "output the result")
 	flag.IntVar(&maxCheckTimes, "max-check-times", maxCheckTimes, "The max times for checking loadbalancer is ready for next step.")
 	flag.StringVar(&checkLB, "check-lb", "", "the loadbalancer name or id for checking execution status.")
-	flag.StringVar(&dbUsername, "db-username", "", "database username")
-	flag.StringVar(&dbPassword, "db-password", "", "database password")
-	flag.StringVar(&dbDBName, "db-dbname", "", "database name")
-	flag.StringVar(&dbHostname, "db-hostname", "", "database hostanme")
-	flag.StringVar(&dbPort, "db-tcpport", "", "database port")
+	flag.StringVar(&mysqluri, "mysql-uri", "", "database connection string")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
 
-	if dbUsername != "" && dbPassword != "" && dbDBName != "" && dbHostname != "" && dbPort != "" {
-		dbstr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbUsername, dbPassword, dbHostname, dbPort, dbDBName)
-		conn, err := gorm.Open(mysql.Open(dbstr), &gorm.Config{})
+	if mysqluri != "" {
+		// mysql conn string example: neutron:abd2aebadeff3e32@tcp(1.2.3.4:3306)/ovs_neutron
+		matched, _ := regexp.MatchString(`\w+:\w+@tcp\([0-9\.]+:\d+\)/\w+`, mysqluri)
+		if !matched {
+			logger.Fatalf("Invalid mysql uri provided: %s", mysqluri)
+		}
+		conn, err := gorm.Open(mysql.Open(mysqluri), &gorm.Config{})
 		if err != nil {
 			logger.Fatal(err)
 		}
 		dbConn = conn
+		logger.Printf("%20s: %s", "MySQL URI", mysqluri)
 	}
 
-	logger.Printf("output to: %s", output)
+	of, e := os.OpenFile(outputFilePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, os.ModeAppend|os.ModePerm)
+	if e != nil {
+		logger.Fatalf("Failed to open file %s for writing.", e.Error())
+	}
+	outputFile = of
+	logger.Printf("%20s: %s", "Output File Path", outputFilePath)
 
 	neutronArgsIndex := StringArray(os.Args).IndexOf("--")
 	if neutronArgsIndex == -1 {
@@ -417,7 +440,7 @@ func HandleArguments() {
 
 	neutronCmdArgs := strings.Join(os.Args[neutronArgsIndex+1:variableArgsIndex], " ")
 	neutronCmdArgs = checkLB + "|" + neutronCmdArgs
-	logger.Printf("Command template: %s", neutronCmdArgs)
+	logger.Printf("%20s: %s", "Command Template", neutronCmdArgs)
 
 	variables := map[string]StringArray{}
 
@@ -448,12 +471,20 @@ func HandleArguments() {
 		}
 	}
 
-	logger.Printf("variables parsed as")
+	logger.Printf("%20s:", "Variables")
 	for k, v := range variables {
-		logger.Printf("%10s: %v", k, v)
+		logger.Printf("%30s: %v", k, v)
 	}
 
 	ConstructFromTemplate(neutronCmdArgs, variables)
+
+	// Random cmdList order to help reducing objects' waiting time in the same loadbalancer.
+	for i := range cmdList {
+		r := rand.Int() % len(cmdList)
+		t := cmdList[r]
+		cmdList[r] = cmdList[i]
+		cmdList[i] = t
+	}
 }
 
 // PrintUsage print the usage

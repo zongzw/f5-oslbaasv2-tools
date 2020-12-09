@@ -72,24 +72,35 @@
             //     "index:1-5",
             //     "subnet:private-subnet,public-subnet"
             // ]
+            // "args": [
+            //     "--output-filepath",
+            //     "output/test.json",
+            //     "--check-lb",
+            //     "lb%{index}-%{subnet}",
+            //     "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
+            //     "--",
+            //     "lbaas-loadbalancer-create",
+            //     "--name",
+            //     "lb%{index}-%{subnet}",
+            //     "%{subnet}",
+            //     "++",
+            //     "index:41-42",
+            //     "subnet:public_subnet,private_subnet"
+            // ]
             "args": [
                 "--output-filepath",
                 "output/test.json",
                 "--check-lb",
-                "lb%{index}-%{subnet}",
-                "--db-username",  "neutron",
-                "--db-password","6832ff865bf045c5",
-                "--db-dbname","neutron",
-                "--db-tcpport", "3306",
-                "--db-hostname", "10.145.73.123",
+                "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf",
+                "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
                 "--",
-                "lbaas-loadbalancer-create",
-                "--name",
-                "lb%{index}-%{subnet}",
-                "%{subnet}",
+                "lbaas-member-create",
+                "--name", "mb%{index}",
+                "--subnet", "ba4822e1-5c49-4715-9dcc-2156b15293f3",
+                "--address", "1.1.1.%{index}", "--protocol-port", "80",
+                "pl108", 
                 "++",
-                "index:41-42",
-                "subnet:public_subnet"
+                "index:50-110"
             ]
         },
         {
