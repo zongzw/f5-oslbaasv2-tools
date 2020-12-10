@@ -51,6 +51,8 @@ type RequestContext struct {
 	OperationType string `json:"operation_type"`
 	UserID        string `json:"user_id"`
 	TenantID      string `json:"tenant_id"`
+	LoadBalancer  string `json:"loadbalancer"`
+	Result        string `json:"result"`
 
 	// phrase timestamp
 	TimeNeutronAPI   string `json:"time_neutron_api"`
@@ -100,6 +102,7 @@ var (
 		"ACTION":    `(create|update|delete)`,
 		"WORD":      `\w+`, // [0-9a-zA-Z_] strings
 		"NUM":       `\d+`, // 202 400 200
+		"RESULT":    `(ACTIVE|ERROR)`,
 	}
 
 	pLBaaSv2 = map[string]MatchHandler{
@@ -220,7 +223,7 @@ var (
 		"update_loadbalancer_status": MatchHandler{
 			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc",
 			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} .*\].* ` +
-				`method update_loadbalancer_status called with arguments.*`,
+				`method update_loadbalancer_status called with arguments.*%{UUID:loadbalancer}.*%{RESULT:result}.*`,
 			Function: nil,
 		},
 
