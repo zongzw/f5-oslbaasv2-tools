@@ -10,6 +10,7 @@ for n in $progs; do
         bash -c '
             mkdir -p /usr/src/'$n'/dist
             rm -rf /usr/src/'$n'/dist
+echo nameserver 114.114.114.114 > /etc/resolv.conf
             export GOPROXY=https://goproxy.cn
             for GOOS in darwin linux; do
                 for GOARCH in amd64; do
