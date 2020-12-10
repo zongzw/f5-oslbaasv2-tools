@@ -87,20 +87,38 @@
             //     "index:41-42",
             //     "subnet:public_subnet,private_subnet"
             // ]
-            "args": [
+            // "args": [
+            //     "--output-filepath",
+            //     "output/test.json",
+            //     "--check-lb",
+            //     "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf",
+            //     "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
+            //     "--",
+            //     "lbaas-member-create",
+            //     "--name", "mb%{index}",
+            //     "--subnet", "ba4822e1-5c49-4715-9dcc-2156b15293f3",
+            //     "--address", "1.1.1.%{index}", "--protocol-port", "80",
+            //     "pl108", 
+            //     "++",
+            //     "index:50-110"
+            // ]
+            // "args": [ // test creating lb with --debug
+            //     "--output-filepath",
+            //     "output/test.json",
+            //     "--mysql-uri", "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
+            //     "--",
+            //     "lbaas-loadbalancer-create",
+            //     "--name", "lbtest-debug",
+            //     "ba4822e1-5c49-4715-9dcc-2156b15293f3"
+            // ]
+            "args": [ // test creating lb with --debug with create fails
                 "--output-filepath",
                 "output/test.json",
-                "--check-lb",
-                "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf",
-                "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
+                "--mysql-uri", "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
                 "--",
-                "lbaas-member-create",
-                "--name", "mb%{index}",
-                "--subnet", "ba4822e1-5c49-4715-9dcc-2156b15293f3",
-                "--address", "1.1.1.%{index}", "--protocol-port", "80",
-                "pl108", 
-                "++",
-                "index:50-110"
+                "lbaas-loadbalancer-create",
+                "--name", "lbtest-debug",
+                "ba4822e1-5c49-4715-9dcc-2156b15293f3"
             ]
         },
         {

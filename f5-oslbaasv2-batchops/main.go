@@ -43,6 +43,7 @@ type CommandContext struct {
 	ObjectID      string        `json:"object_id"`
 	RawOut        string        `json:"output"`
 	Err           string        `json:"error"`
+	CLIRequests   []string      `json:"cli_requests"`
 	ExitCode      int           `json:"exitcode"`
 	Duration      time.Duration `json:"duration"`
 	ResourceType  string        `json:"resource_type"`
@@ -55,8 +56,10 @@ var (
 	usage   = fmt.Sprintf("Usage: \n\n    %s [command arguments] -- <neutron command and arguments>[ ++ variable-definition]\n\n", os.Args[0])
 	example = fmt.Sprintf("Example:\n\n    %s --output-filepath /dev/stdout \\\n    "+
 		"-- loadbalancer-create --name lb%s %s \\\n    ++ x:1-5 y:private-subnet,public-subnet\n\n", os.Args[0], "{x}", "{y}")
-	varRegexp = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
-	cmdList   = []string{}
+	varRegexp      = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
+	cliTraceRegexp = regexp.MustCompile(`\w+ call to .* used request id req-.*`)
+
+	cmdList = []string{}
 
 	outputFilePath string
 	checkLB        string
@@ -65,7 +68,7 @@ var (
 	dbConn         *gorm.DB = nil
 
 	cmdResults = []*CommandContext{}
-	cmdPrefix  = "neutron "
+	cmdPrefix  = "neutron --debug "
 
 	chsig = make(chan os.Signal)
 
@@ -160,6 +163,7 @@ func (cmdctx *CommandContext) Execute() {
 		e = c.Wait()
 		if e != nil {
 			err.WriteString(e.Error())
+			cmdctx.Err = err.String()
 		} else {
 			cmdctx.RawOut = out.String()
 			var resp NeutronResponse
@@ -168,7 +172,8 @@ func (cmdctx *CommandContext) Execute() {
 			}
 		}
 	}
-	cmdctx.Err = err.String()
+	cmdctx.CLIRequests = cliTraceRegexp.FindAllString(err.String(), -1)
+
 	fe := time.Now()
 	cmdctx.ExitCode = c.ProcessState.ExitCode()
 	cmdctx.Duration = fe.Sub(fs)
