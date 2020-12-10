@@ -32,20 +32,17 @@ source $openrc
 function unlimit_lbaas_quota() {
     proj=$1
 
-    neutron --os-project-name $proj quota-update --loadbalancer -1
-    neutron --os-project-name $proj quota-update --healthmonitor -1
-    neutron --os-project-name $proj quota-update --l7policy -1
-    neutron --os-project-name $proj quota-update --listener -1
-    neutron --os-project-name $proj quota-update --loadbalancer -1
-    neutron --os-project-name $proj quota-update --member -1
-    neutron --os-project-name $proj quota-update --pool -1
-
+    for n in loadbalancer healthmonitor l7policy listener member pool; do
+        echo -n "$n .. " 
+        neutron --os-project-name $proj quota-update --$n -1 > /dev/null 2>&1
+    done
     # neutron --os-project-name $proj quota-update --network -1
     # neutron --os-project-name $proj quota-update --floatingip -1
     # neutron --os-project-name $proj quota-update --port -1
     # neutron --os-project-name $proj quota-update --router -1
     # neutron --os-project-name $proj quota-update --security_group -1
     # neutron --os-project-name $proj quota-update --subnet -1
+    echo
 }
 
 index=$project_start_no
@@ -59,7 +56,7 @@ while [ $index -le $project_end_no ]; do
     openstack role add --project $project_name --user admin admin
 
     echo "Unlimit resources' quota ..."
-    unlimit_lbaas_quota $project_name > /dev/null 2>&1
+    unlimit_lbaas_quota $project_name
 
     index=$(($index + 1))
 done

@@ -24,9 +24,10 @@ source $openrc
 
 dts=`date +%Y-%m-%d-%H-%M-%S`
 
+set -x 
 # create loadbalancer
 $batchbin --max-check-times 1024 \
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_lb_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-loadbalancer-create --provider $provider \
@@ -34,8 +35,8 @@ $batchbin --max-check-times 1024 \
     ++ pjrange:$pjrange lbrange:$lbrange subnet:$subnet
 
 # create pool
-$batchbin --max-check-times 1024 \ 
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+$batchbin --max-check-times 1024 \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_pl_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-pool-create --name $prefix_pl%{pjrange}-%{lbrange}-%{plrange} \
@@ -43,8 +44,8 @@ $batchbin --max-check-times 1024 \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
 
 # create healthmonitor
-$batchbin --max-check-times 1024 \ 
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+$batchbin --max-check-times 1024 \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_hm_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-healthmonitor-create --name $prefix_hm%{pjrange}-%{lbrange}-%{plrange} \
@@ -52,8 +53,8 @@ $batchbin --max-check-times 1024 \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
 
 # create listener
-$batchbin --max-check-times 1024 \ 
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+$batchbin --max-check-times 1024 \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_ls_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-listener-create --name $prefix_ls%{pjrange}-%{lbrange}-%{lsrange} \
@@ -62,8 +63,8 @@ $batchbin --max-check-times 1024 \
     ++ pjrange:$pjrange lbrange:$lbrange lsrange:$lsrange
 
 # create member
-$batchbin --max-check-times 1024 \ 
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+$batchbin --max-check-times 1024 \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_mb_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-member-create --name $prefix_mb%{pjrange}-%{lbrange}-%{plrange}-%{mbrange} \
@@ -72,8 +73,8 @@ $batchbin --max-check-times 1024 \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange mbrange:$mbrange subnet:$subnet
 
 # create l7policy
-$batchbin --max-check-times 1024 \ 
-      --mysql-uri $neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_host \
+$batchbin --max-check-times 1024 \
+      --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_l7p_$dts.json \
       --check-lb $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-l7policy-create \
