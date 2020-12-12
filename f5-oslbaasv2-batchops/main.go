@@ -227,7 +227,7 @@ func ExecuteNeutronCommands() {
 
 		// check the command execution.
 		if cmdctx.ExitCode == 0 {
-			// cmdctx.WaitForDone()
+			cmdctx.WaitForDone()
 		} else {
 			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
 		}
