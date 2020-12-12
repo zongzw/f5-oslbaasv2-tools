@@ -215,7 +215,7 @@ func ExecuteNeutronCommands() {
 		logger.Printf("Command(%d/%d): Prepare to run '%s'", i+1, len(cmdList), cmdctx.Command)
 		if err := cmdctx.WaitForReady(); err != nil {
 			logger.Printf("Command(%d/%d): Not ready to run this command: %s", i+1, len(cmdList), err.Error())
-			return
+			continue
 		}
 
 		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), cmdctx.Command)
