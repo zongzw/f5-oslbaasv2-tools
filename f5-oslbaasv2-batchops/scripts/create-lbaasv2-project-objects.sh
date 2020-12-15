@@ -6,5 +6,5 @@ if [ $# -ne 1 ] || [ ! -f $1 ]; then
 	exit 1
 fi
 
-$workdir/create-projects.sh $1
-$workdir/create-lbaasv2-objects-layer-order.sh $1
+$workdir/_create-projects.sh $1
+$workdir/_create-lbaasv2-objects-layer-order.sh $1
