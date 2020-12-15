@@ -54,7 +54,7 @@ type CommandContext struct {
 var (
 	logger  = log.New(os.Stdout, "", log.LstdFlags)
 	usage   = fmt.Sprintf("Usage: \n\n    %s [command arguments] -- <neutron command and arguments>[ ++ variable-definition]\n\n", os.Args[0])
-	example = fmt.Sprintf("Example:\n\n    %s --output-filepath /dev/stdout \\\n    "+
+	example = fmt.Sprintf("Example:\n\n    %s --output-filepath ./out.json \\\n    "+
 		"-- loadbalancer-create --name lb%s %s \\\n    ++ x:1-5 y:private-subnet,public-subnet\n\n", os.Args[0], "{x}", "{y}")
 	varRegexp      = regexp.MustCompile(`%\{[a-zA-Z_][a-zA-Z0-9_]*\}`)
 	cliTraceRegexp = regexp.MustCompile(`\w+ call to .* used request id req-.*`)
@@ -62,9 +62,10 @@ var (
 	cmdList = []string{}
 
 	outputFilePath string
-	checkLB        string
+	loadbalancer   string
 	outputFile     *os.File
 	mysqluri       string
+	checkDone      bool
 	dbConn         *gorm.DB = nil
 
 	cmdResults = []*CommandContext{}
@@ -221,13 +222,15 @@ func ExecuteNeutronCommands() {
 		logger.Printf("Command(%d/%d): Start '%s'", i+1, len(cmdList), cmdctx.Command)
 		cmdctx.Execute()
 
-		logger.Printf("Command(%d/%d): exits with: %d, executing time: %d ms",
-			cmdctx.Seq, len(cmdList), cmdctx.ExitCode, cmdctx.Duration.Milliseconds())
+		logger.Printf("Command(%d/%d): exits with: %d, object id: %s, executing time: %d ms",
+			cmdctx.Seq, len(cmdList), cmdctx.ExitCode, cmdctx.ObjectID, cmdctx.Duration.Milliseconds())
 		time.Sleep(time.Duration(1) * time.Second)
 
 		// check the command execution.
 		if cmdctx.ExitCode == 0 {
-			cmdctx.WaitForDone()
+			if checkDone {
+				cmdctx.WaitForDone()
+			}
 		} else {
 			logger.Printf("Command(%d/%d): Error output: %s", cmdctx.Seq, len(cmdList), cmdctx.Err)
 		}
@@ -368,7 +371,10 @@ func (cmdctx *CommandContext) WaitForDone() (bool, error) {
 						logger.Printf("Command(%d/%d): Failed to fetch object %s status: %s",
 							cmdctx.Seq, len(cmdList), cmdctx.ObjectID, err.Error())
 						break
-					} else if strings.HasPrefix(status, "PENDING_") {
+					}
+					logger.Printf("Command(%d/%d): Object(%s) %s staus is %s",
+						cmdctx.Seq, len(cmdList), cmdctx.ResourceType, cmdctx.ObjectID, status)
+					if strings.HasPrefix(status, "PENDING_") {
 						time.Sleep(time.Duration(1) * time.Second)
 						continue
 					}
@@ -406,8 +412,9 @@ func (cmdctx *CommandContext) WaitForDone() (bool, error) {
 func HandleArguments() {
 	flag.StringVar(&outputFilePath, "output-filepath", "/dev/stdout", "output the result")
 	flag.IntVar(&maxCheckTimes, "max-check-times", maxCheckTimes, "The max times for checking loadbalancer is ready for next step.")
-	flag.StringVar(&checkLB, "check-lb", "", "the loadbalancer name or id for checking execution status.")
+	flag.StringVar(&loadbalancer, "loadbalancer", "", "the loadbalancer name or id for checking execution status.")
 	flag.StringVar(&mysqluri, "mysql-uri", "", "database connection string")
+	flag.BoolVar(&checkDone, "check-done", false, "check the object is created or not.")
 
 	flag.Usage = PrintUsage
 	flag.Parse()
@@ -444,7 +451,7 @@ func HandleArguments() {
 	}
 
 	neutronCmdArgs := strings.Join(os.Args[neutronArgsIndex+1:variableArgsIndex], " ")
-	neutronCmdArgs = checkLB + "|" + neutronCmdArgs
+	neutronCmdArgs = loadbalancer + "|" + neutronCmdArgs
 	logger.Printf("%20s: %s", "Command Template", neutronCmdArgs)
 
 	variables := map[string]StringArray{}

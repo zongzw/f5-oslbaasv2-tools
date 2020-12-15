@@ -9,7 +9,7 @@ See [./scripts/create-lbaasv2-objects.sh](./scripts/create-lbaasv2-objects.sh) f
 
 The command arguments includes 3 parts, as shown in below 'help and example':
 
-* **\[command arguments]**: The arguments to control the command's behavior, like `--output-filepath <filepath>` tells the command where to save the result; `--check-lb <lb id or name>` tells the command which loadbalancer this operated resource belongs to(for check purpose).
+* **\[command arguments]**: The arguments to control the command's behavior, like `--output-filepath <filepath>` tells the command where to save the result; `--loadbalancer <lb id or name>` tells the command which loadbalancer this operated resource belongs to(for check purpose).
 * **\<neutron command>**: The neutron command template(with variables declared inside if any). Its syntex complies with native neutron commands(`neutron lbaas-*`) but 
   * For ease of use, the prefix `neutron lbaas-` should NOT be included here. For example, `neutron lbaas-loadbalancer-list`, change to `loadbalancer-list` instead here.
   * Use `%{variable-name}` to indicate `neutron command` is a command template which would be executed multiple times according to variable‘s value.
@@ -36,7 +36,7 @@ Example:
 
 Command Arguments:
 
-  -check-lb string
+  -loadbalancer string
     	the loadbalancer name or id for checking execution status.
   -output-filepath string
     	output the result (default "/dev/stdout")

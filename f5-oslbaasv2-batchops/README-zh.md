@@ -12,7 +12,7 @@
 
   `--output-filepath <filepath>` 指定了命令执行后的保存路径; 
   
-  `--check-lb <lb id or name>` 指定了所所操作资源所属的loadbalancer。
+  `--loadbalancer <lb id or name>` 指定了所所操作资源所属的loadbalancer。
 * **\<neutron command>**: neutron 命令模板部分（可能包含变量声明）。此部分的语法和neutron原生命令（`neutron lbaas-*`）相同。但需要注意以下几点：
   * 为了方便使用，neutron命令的前缀部分`neutron ` 请不要包含在其中，例如： `neutron lbaas-loadbalancer-list`, 在使用中，只需要`lbaas-loadbalancer-list`。
   * 使用`%{variable-name}` 作为变量声明，这个声明会在实际执行过程中替换成具体的变量值，命令模板因此被替换成实际neutron命令执行多次。
@@ -39,7 +39,7 @@ Example:
 
 Command Arguments:
 
-  -check-lb string
+  -loadbalancer string
     	the loadbalancer name or id for checking execution status.
   -output-filepath string
     	output the result (default "/dev/stdout")

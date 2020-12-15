@@ -61,7 +61,7 @@
             // "args": [
             //     "--output-filepath",
             //     "output/test.json",
-            //     "--check-lb",
+            //     "--loadbalancer",
             //     "lb%{index}",
             //     "--",
             //     "loadbalancer-create",
@@ -75,7 +75,7 @@
             // "args": [
             //     "--output-filepath",
             //     "output/test.json",
-            //     "--check-lb",
+            //     "--loadbalancer",
             //     "lb%{index}-%{subnet}",
             //     "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
             //     "--",
@@ -90,7 +90,7 @@
             // "args": [
             //     "--output-filepath",
             //     "output/test.json",
-            //     "--check-lb",
+            //     "--loadbalancer",
             //     "4e0ba390-21f1-45db-9b2d-d2d5ab5dffdf",
             //     "--mysql-uri",  "neutron:6832ff865bf045c5@tcp(10.145.73.123:3306)/neutron",
             //     "--",

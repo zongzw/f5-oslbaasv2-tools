@@ -29,7 +29,7 @@ set -x
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_lb_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-loadbalancer-create --provider $provider \
        --name $prefix_lb%{pjrange}-%{lbrange} %{subnet} \
     ++ pjrange:$pjrange lbrange:$lbrange subnet:$subnet
@@ -38,7 +38,7 @@ $batchbin --max-check-times 1024 \
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_pl_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-pool-create --name $prefix_pl%{pjrange}-%{lbrange}-%{plrange} \
         --lb-algorithm ROUND_ROBIN --loadbalancer $prefix_lb%{pjrange}-%{lbrange} --protocol HTTP \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
@@ -47,7 +47,7 @@ $batchbin --max-check-times 1024 \
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_hm_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-healthmonitor-create --name $prefix_hm%{pjrange}-%{lbrange}-%{plrange} \
         --timeout 15 --delay 15 --max-retries 5 --type PING --pool $prefix_pl%{pjrange}-%{lbrange}-%{plrange} \
     ++ pjrange:$pjrange lbrange:$lbrange plrange:$plrange
@@ -56,7 +56,7 @@ $batchbin --max-check-times 1024 \
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_ls_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-listener-create --name $prefix_ls%{pjrange}-%{lbrange}-%{lsrange} \
        --default-pool $prefix_pl%{pjrange}-%{lbrange}-1 --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
        --protocol HTTP --protocol-port %{lsrange} \
@@ -66,7 +66,7 @@ $batchbin --max-check-times 1024 \
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_mb_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-member-create --name $prefix_mb%{pjrange}-%{lbrange}-%{plrange}-%{mbrange} \
        --subnet %{subnet} --address %{pjrange}.%{lbrange}.%{plrange}.%{mbrange} --protocol-port 80 \
        $prefix_pl%{pjrange}-%{lbrange}-%{plrange} \
@@ -76,7 +76,7 @@ $batchbin --max-check-times 1024 \
 $batchbin --max-check-times 1024 \
       --mysql-uri "$neutron_db_username:$neutron_db_password@tcp($neutron_db_host:3306)/$neutron_db_name" \
       --output-filepath $output_dir/create_l7p_$dts.json \
-      --check-lb $prefix_lb%{pjrange}-%{lbrange} \
+      --loadbalancer $prefix_lb%{pjrange}-%{lbrange} \
     -- --os-project-name $prefix_proj%{pjrange} lbaas-l7policy-create \
        --name $prefix_l7p%{pjrange}-%{lbrange}-%{lsrange}-%{l7prange} \
        --action REJECT --listener $prefix_ls%{pjrange}-%{lbrange}-%{lsrange} \
