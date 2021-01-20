@@ -3,7 +3,7 @@
 This is a program(in golang) to help running `neutron` commands in batch.
 It is usually used to create dozens of loadbalancer resources, such as loadbalancer/listener/pool/member/healthmonitor/l7policy/l7rule for performance test.
 
-See [./scripts/create-lbaasv2-objects.sh](./scripts/create-lbaasv2-objects.sh) for f5-oslbaasv2-batchops encapsulation. Generally change the configuration inside the script and run it to finish the batch operation.
+See [./scripts/_create-lbaasv2-objects-layer-order.sh](./scripts/_create-lbaasv2-objects-layer-order.sh) for f5-oslbaasv2-batchops encapsulation. Generally change the configuration inside the script and run it to finish the batch operation.
 
 ## Usage
 
