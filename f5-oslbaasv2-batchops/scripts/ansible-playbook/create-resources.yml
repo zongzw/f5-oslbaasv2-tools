@@ -43,6 +43,7 @@
         - listener
         - pool
         - healthmonitor
+        - member
 
     - set_fact: 
         index_pj: "{{ index }}"
@@ -56,6 +57,7 @@
         - listener
         - pool
         - healthmonitor
+        - member
 
     - debug: msg="Creating in project proj_{{ index_pj }} => 
        {{ count_ls }} listeners, {{ count_pl }} pools, {{ count_hm }} healthmonitors, {{ count_mb }} members"
@@ -65,6 +67,7 @@
         - listener
         - pool
         - healthmonitor
+        - member
 
     - name: copy scripts to remote host
       copy: src={{ item }} dest=/tmp/ force=yes mode=0755
@@ -75,6 +78,7 @@
         - listener
         - pool
         - healthmonitor
+        - member
 
     - name: get proj_{{ index_pj }} id
       shell: |
@@ -85,6 +89,7 @@
         - listener
         - pool
         - healthmonitor
+        - member
 
     - name: create loadbalancer
       shell: |
