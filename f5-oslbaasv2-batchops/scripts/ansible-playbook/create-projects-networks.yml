@@ -6,6 +6,9 @@
     - name: Set project and network range
       set_fact:
         test_range: "{{ range(0, projects, 1) | list }}"
+      tags:
+        - project
+        - network
     
     - name: Create projects
       shell: |
@@ -19,7 +22,7 @@
       shell: |
         source {{ openrc }}
         project_id=`openstack project show proj_{{ item }} --format value --column id`
-        exists=`neutron net-list --format value --column id | grep "^net-{{ item }}$"`
+        exists=`neutron net-list --format value --column name | grep "^net-{{ item }}$"`
         set -e
         if [ $? -eq 0 -a "$exists" != "net-{{ item }}" ]; then
           neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }}

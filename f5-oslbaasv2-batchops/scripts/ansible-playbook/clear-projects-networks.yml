@@ -6,7 +6,8 @@
   tasks:
     - name: list network names
       shell: |
-        source {{ openrc }} && openstack network list --format value --column Name | grep net- || true
+        source {{ openrc }} 
+        openstack network list --format value --column ID --column Name | grep net- | cut -d ' ' -f1
       register: network_names
       tags:
         - network
@@ -19,7 +20,8 @@
 
     - name: list project names
       shell: |
-        source {{ openrc }} && openstack project list --format value --column Name | grep proj_ || true
+        source {{ openrc }}
+        openstack project list --format value --column ID --column Name | grep proj_ | cut -d ' ' -f1
       register: project_names
       tags:
         - project
