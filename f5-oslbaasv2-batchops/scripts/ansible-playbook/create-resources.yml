@@ -136,7 +136,7 @@
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
             --name ls-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
-            --loadbalancer lb-{{ index_pj }} --default-pool pl-{{ index_pj }}-{{ item % (count_pl|int) }}\
+            --loadbalancer lb-{{ index_pj }} --default-pool pl-{{ index_pj }}-{{ item % (count_pl|int) }} \
             --protocol HTTP --protocol-port {{ item }}
         fi
       with_items: "{{ range(0 , count_ls|int, 1) | list }}"
