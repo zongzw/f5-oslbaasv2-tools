@@ -1,5 +1,7 @@
 ---
 
+projects: 100
+
 testsuites:
   - loadbalancer: 1
     listener: 100

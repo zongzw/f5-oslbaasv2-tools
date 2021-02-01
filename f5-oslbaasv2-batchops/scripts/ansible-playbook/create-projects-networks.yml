@@ -3,11 +3,11 @@
   remote_user: root
   gather_facts: False
   tasks:
-    - name: set test range
+    - name: Set project and network range
       set_fact:
-        test_range: "{{ range(1, 10, 1) | list }}"
+        test_range: "{{ range(1, projects, 1) | list }}"
     
-    - name: create projects
+    - name: Create projects
       shell: |
         source {{ openrc }} && openstack project create --or-show proj_{{ item }} \
         && openstack role add --project proj_{{ item }} --user admin admin
@@ -15,11 +15,16 @@
       tags:
         - project
       
-    - name: create networks
+    - name: Create networks
       shell: |
-        source {{ openrc }} && project_id=`openstack project show proj_{{ item }} --format value --column id` \
-        && neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }} \
-        && neutron subnet-create --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
+        source {{ openrc }}
+        project_id=`openstack project show proj_{{ item }} --format value --column id`
+        exists=`neutron net-list --format value --column id | grep "^net-{{ item }}$"`
+        set -e
+        if [ $? -eq 0 -a "$exists" != "net-{{ item }}" ]; then
+          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }} \
+          neutron subnet-create --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
+        fi
       with_items: "{{ test_range }}"
       tags:
         network
