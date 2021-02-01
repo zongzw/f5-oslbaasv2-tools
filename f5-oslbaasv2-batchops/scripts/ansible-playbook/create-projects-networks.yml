@@ -18,6 +18,16 @@
       tags:
         - project
       
+    - name: Reset resource quotas
+      shell: |
+        for n in loadbalancer healthmonitor l7policy listener member pool; do
+          echo -n "$n .. " 
+          neutron --os-project-name proj_{{ item }} quota-update --$n -1 > /dev/null 2>&1
+        done
+      with_items: "{{ test_range }}"
+      tags:
+        - project
+
     - name: Create networks
       shell: |
         source {{ openrc }}
@@ -26,7 +36,7 @@
         set -e
         if [ $? -eq 0 -a "$exists" != "net-{{ item }}" ]; then
           neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }}
-          neutron subnet-create --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
+          neutron subnet-create --tenant-id $project_id --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
         fi
       with_items: "{{ test_range }}"
       tags:

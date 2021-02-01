@@ -49,7 +49,7 @@
         exists=`/tmp/if-exists-resource.sh loadbalancers lb-{{ index_pj }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
-            --name lb-{{ index_pj }} subnet-{{ index_pj }}
+            --name lb-{{ index_pj }} --tenant-id {{ project_id.stdout }} subnet-{{ index_pj }}
         fi
 
     - name: create pools
@@ -60,7 +60,7 @@
         exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
-            --name pl-{{ index_pj }}-{{ item }}  --tenant-id {{ project_id.stdout }} \
+            --name pl-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
             --loadbalancer lb-{{ index_pj }} \
             --protocol HTTP --lb-algorithm ROUND_ROBIN
         fi
