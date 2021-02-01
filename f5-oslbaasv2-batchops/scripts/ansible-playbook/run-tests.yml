@@ -3,17 +3,14 @@
   remote_user: root
   gather_facts: False
   tasks:
-    - set_fact:
-        max:  "{{index}}"
-    
-    - debug: msg="{{ max | int }}"
-    - name: check server reachable
-      shell: echo {{ index }} {{ item }}
-      loop: "{{ range(1, max | int, 1) | list }}"
-      loop_control:
-        index_var: index
-      delegate_to: localhost
+    - debug: msg="run with {{ indexes }}"
 
-    - debug: msg="{{ 60 | random }}"
-      with_items: "{{ range(0, 60, 1) | list }}"
+    - name: run test
+      shell: |
+        ansible-playbook \
+          -i /root/f5-oslbaasv2-tools/f5-oslbaasv2-batchops/scripts/ansible-playbook/env.ini \
+          -e@/root/f5-oslbaasv2-tools/f5-oslbaasv2-batchops/scripts/ansible-playbook/vars.yml \
+          /root/f5-oslbaasv2-tools/f5-oslbaasv2-batchops/scripts/ansible-playbook/create-resources.yml \
+          -e index={{ item }}
+      with_items: "{{ indexes }}"
     
