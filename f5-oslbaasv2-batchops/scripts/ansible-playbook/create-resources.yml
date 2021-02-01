@@ -156,3 +156,4 @@
             pl-{{ index_pj }}-{{ item % (count_pl|int) }}
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"
+      tags: member
