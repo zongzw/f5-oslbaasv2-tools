@@ -6,18 +6,43 @@
   tasks:
     - debug: msg="Parsed index {{ index }} .."
       delegate_to: localhost
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
+
     - assert:
         that: (index|int) >= 0 and (index|int) < projects
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
 
     - set_fact: _index=9
       when: (index | int) > 9
       delegate_to: localhost
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
     - set_fact: _index={{ index }} 
       when: (index | int) <= 9
       delegate_to: localhost
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
     - debug: msg="Using index {{ _index }} .."
       delegate_to: localhost
-    
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
 
     - set_fact: 
         index_pj: "{{ index }}"
@@ -26,21 +51,40 @@
         count_hm: "{{ testsuites[_index|int].healthmonitor }}"
         count_mb: "{{ testsuites[_index|int].member }}"
       delegate_to: localhost
-    
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
+
     - debug: msg="Creating in project proj_{{ index_pj }} => 
        {{ count_ls }} listeners, {{ count_pl }} pools, {{ count_hm }} healthmonitors, {{ count_mb }} members"
       delegate_to: localhost
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
 
     - name: copy scripts to remote host
       copy: src={{ item }} dest=/tmp/ force=yes mode=0755
       with_fileglob:
         - ./*.sh
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
 
     - name: get proj_{{ index_pj }} id
       shell: |
         source {{ openrc }} && openstack project show proj_{{ index_pj }} --format value --column id
       register: project_id
-
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
 
     - name: create loadbalancer
       shell: |
@@ -51,12 +95,13 @@
           neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
             --name lb-{{ index_pj }} --tenant-id {{ project_id.stdout }} subnet-{{ index_pj }}
         fi
+      tags: loadbalancer
 
     - name: create pools
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-active.sh lb-{{ index_pj }} {{ neutrondb_password }}
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
         exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
@@ -65,12 +110,13 @@
             --protocol HTTP --lb-algorithm ROUND_ROBIN
         fi
       with_items: "{{ range(0 , count_pl|int, 1) | list }}"
+      tags: pool
 
     - name: create healthmonitors
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-active.sh lb-{{ index_pj }} {{ neutrondb_password }}
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
         exists=`/tmp/if-exists-resource.sh healthmonitors hm-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-healthmonitor-create \
@@ -79,12 +125,13 @@
             --delay 15 --timeout 15 --max-retries 5 --type PING
         fi
       with_items: "{{ range(0 , count_hm|int, 1) | list }}"
+      tags: healthmonitor
 
     - name: create listeners
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-active.sh lb-{{ index_pj }} {{ neutrondb_password }}
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
         exists=`/tmp/if-exists-resource.sh listeners ls-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
@@ -93,12 +140,13 @@
             --protocol HTTP --protocol-port {{ item }}
         fi
       with_items: "{{ range(0 , count_ls|int, 1) | list }}"
+      tags: listener
     
     - name: create members
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-active.sh lb-{{ index_pj }} {{ neutrondb_password }}
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
         exists=`/tmp/if-exists-resource.sh members mb-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \

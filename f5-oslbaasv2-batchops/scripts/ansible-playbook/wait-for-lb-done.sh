@@ -21,12 +21,9 @@ while [ $timeout -gt 0 ]; do
         echo "no loadbalancer named $1, quit"
         exit 1
     fi
-    if [ "$status" = "ACTIVE" ]; then
+    if [ "$status" = "ACTIVE" -o "$status" = "ERROR" ]; then
         echo "loadbalancer: $1: $status"
         exit 0
-    elif [ "$status" = "ERROR" ]; then
-        echo "loadbalancer: $1: $status"
-        exit 1
     else
         echo "loadbalancer: $1: $status, waiting"
     fi
