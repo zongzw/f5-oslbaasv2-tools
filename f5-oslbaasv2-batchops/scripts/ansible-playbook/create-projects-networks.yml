@@ -8,6 +8,7 @@
         test_range: "{{ range(0, projects, 1) | list }}"
       tags:
         - project
+        - quota
         - network
     
     - name: Create projects
@@ -20,13 +21,14 @@
       
     - name: Reset resource quotas
       shell: |
+        source {{ openrc }}
         for n in loadbalancer healthmonitor l7policy listener member pool; do
           echo -n "$n .. " 
           neutron --os-project-name proj_{{ item }} quota-update --$n -1 > /dev/null 2>&1
         done
       with_items: "{{ test_range }}"
       tags:
-        - project
+        - quota
 
     - name: Create networks
       shell: |
