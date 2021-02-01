@@ -7,7 +7,7 @@
     - debug: msg="Parsed index {{ index }} .."
       delegate_to: localhost
     - assert:
-        that: (index|int) >= 0 and (index|int) < 100
+        that: (index|int) >= 0 and (index|int) < projects
 
     - set_fact: _index=9
       when: (index | int) > 9

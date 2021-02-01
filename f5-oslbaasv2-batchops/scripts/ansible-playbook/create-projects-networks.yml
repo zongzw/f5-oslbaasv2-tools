@@ -5,7 +5,7 @@
   tasks:
     - name: Set project and network range
       set_fact:
-        test_range: "{{ range(1, projects, 1) | list }}"
+        test_range: "{{ range(0, projects, 1) | list }}"
     
     - name: Create projects
       shell: |
