@@ -22,7 +22,7 @@
         exists=`neutron net-list --format value --column id | grep "^net-{{ item }}$"`
         set -e
         if [ $? -eq 0 -a "$exists" != "net-{{ item }}" ]; then
-          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }} \
+          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }}
           neutron subnet-create --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
         fi
       with_items: "{{ test_range }}"
