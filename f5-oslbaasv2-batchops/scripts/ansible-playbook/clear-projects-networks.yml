@@ -1,0 +1,32 @@
+---
+
+- hosts: servers
+  remote_user: root
+  gather_facts: False
+  tasks:
+    - name: list network names
+      shell: |
+        source {{ openrc }} && openstack network list --format value --column Name | grep net- || true
+      register: network_names
+      tags:
+        - network
+
+    - name: remove networks
+      shell: source {{ openrc }} && openstack network delete {{ item }}
+      with_items: "{{ network_names.stdout_lines }}"
+      tags:
+        - network
+
+    - name: list project names
+      shell: |
+        source {{ openrc }} && openstack project list --format value --column Name | grep proj_ || true
+      register: project_names
+      tags:
+        - project
+    
+    - name: remove projects
+      shell: source {{ openrc }} && openstack project delete {{ item }}
+      with_items: "{{ project_names.stdout_lines }}"
+      tags:
+        - project
+

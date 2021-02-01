@@ -1,0 +1,19 @@
+---
+- hosts: servers
+  remote_user: root
+  gather_facts: False
+  tasks:
+    - set_fact:
+        max:  "{{index}}"
+    
+    - debug: msg="{{ max | int }}"
+    - name: check server reachable
+      shell: echo {{ index }} {{ item }}
+      loop: "{{ range(1, max | int, 1) | list }}"
+      loop_control:
+        index_var: index
+      delegate_to: localhost
+
+    - debug: msg="{{ 60 | random }}"
+      with_items: "{{ range(0, 60, 1) | list }}"
+    

@@ -1,0 +1,25 @@
+---
+- hosts: servers
+  remote_user: root
+  gather_facts: False
+  tasks:
+    - name: set test range
+      set_fact:
+        test_range: "{{ range(1, 10, 1) | list }}"
+    
+    - name: create projects
+      shell: |
+        source {{ openrc }} && openstack project create --or-show proj_{{ item }} \
+        && openstack role add --project proj_{{ item }} --user admin admin
+      with_items: "{{ test_range }}"
+      tags:
+        - project
+      
+    - name: create networks
+      shell: |
+        source {{ openrc }} && project_id=`openstack project show proj_{{ item }} --format value --column id` \
+        && neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }} \
+        && neutron subnet-create --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
+      with_items: "{{ test_range }}"
+      tags:
+        network
