@@ -5,7 +5,7 @@ if [ $# -ne 2 ]; then
     exit 1
 fi
 
-timeout=100
+timeout=300
 delay=3
 
 while [ $timeout -gt 0 ]; do
