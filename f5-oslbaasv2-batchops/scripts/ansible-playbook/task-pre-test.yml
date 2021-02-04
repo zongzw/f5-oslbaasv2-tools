@@ -1,0 +1,9 @@
+- name: copy scripts to remote host
+  copy: src={{ item }} dest=/tmp/ force=yes mode=0755
+  with_fileglob:
+    - ./*.sh
+
+- name: get proj_{{ index_pj }} id
+  shell: |
+    source {{ openrc }} && openstack project show proj_{{ index_pj }} --format value --column id
+  register: project_id

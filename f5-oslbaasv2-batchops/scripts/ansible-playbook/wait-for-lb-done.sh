@@ -30,5 +30,6 @@ while [ $timeout -gt 0 ]; do
     sleep $delay
 done
 
-echo "loadbalancer: $1: $status, timeout, quit." 
+echo "loadbalancer: $1: $status, timeout, reset provisioning_status to ERROR, quit." 
+echo "update lbaas_loadbalancers set provisioning_status = 'ERROR' where name = '$1';" | mysql -uneutron -p$2 neutron
 exit 1

@@ -4,39 +4,7 @@
   remote_user: root
   gather_facts: false
   tasks:
-    - debug: msg="Parsed index {{ index }} .."
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-
-    - assert:
-        that: (index|int) >= 0 and (index|int) < projects
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-
-    - set_fact: _index=9
-      when: (index | int) > 9
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-    - set_fact: _index={{ index }} 
-      when: (index | int) <= 9
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-    - debug: msg="Using index {{ _index }} .."
+    - import_tasks: ./task-set-testsuite.yml
       delegate_to: localhost
       tags:
         - loadbalancer
@@ -45,45 +13,7 @@
         - healthmonitor
         - member
 
-    - set_fact: 
-        index_pj: "{{ index }}"
-        count_ls: "{{ testsuites[_index|int].listener }}"
-        count_pl: "{{ testsuites[_index|int].pool }}"
-        count_hm: "{{ testsuites[_index|int].healthmonitor }}"
-        count_mb: "{{ testsuites[_index|int].member }}"
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
-
-    - debug: msg="Creating in project proj_{{ index_pj }} => 
-       {{ count_ls }} listeners, {{ count_pl }} pools, {{ count_hm }} healthmonitors, {{ count_mb }} members"
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
-
-    - name: copy scripts to remote host
-      copy: src={{ item }} dest=/tmp/ force=yes mode=0755
-      with_fileglob:
-        - ./*.sh
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
-
-    - name: get proj_{{ index_pj }} id
-      shell: |
-        source {{ openrc }} && openstack project show proj_{{ index_pj }} --format value --column id
-      register: project_id
+    - import_tasks: ./task-pre-test.yml
       tags:
         - loadbalancer
         - listener
@@ -157,7 +87,7 @@
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
             --name mb-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
             --protocol-port 80 --subnet subnet-{{ index_pj }} \
-            --address {{ index_pj }}.1.{{ item % (count_pl|int) }}.{{ item % 254 + 1 }} \
+            --address {{ index_pj|int + 1 }}.1.{{ item % (count_pl|int) }}.{{ item % 253 + 1 }} \
             pl-{{ index_pj }}-{{ item % (count_pl|int) }}
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"

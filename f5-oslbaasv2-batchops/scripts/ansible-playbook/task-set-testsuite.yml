@@ -1,0 +1,24 @@
+- debug: msg="Parsed index {{ index }} .."
+
+- assert:
+    that: (index|int) >= 0 and (index|int) < projects
+
+- debug: msg="testsuites length -> {{testsuites | length }}"
+
+- set_fact: testsuites_length={{ testsuites|length }}
+- set_fact: _index={{ testsuites|length - 1 }}
+  when: (index | int) >= testsuites|length
+- set_fact: _index={{ index }} 
+  when: (index | int) < testsuites|length
+- debug: msg="Using index {{ _index }} .."
+
+- set_fact: 
+    index_pj: "{{ index }}"
+    count_ls: "{{ testsuites[_index|int].listener }}"
+    count_pl: "{{ testsuites[_index|int].pool }}"
+    count_hm: "{{ testsuites[_index|int].healthmonitor }}"
+    count_mb: "{{ testsuites[_index|int].member }}"
+
+- debug: msg="Creating in project proj_{{ index_pj }} => 
+    {{ count_ls }} listeners, {{ count_pl }} pools, {{ count_hm }} healthmonitors, {{ count_mb }} members"
+
