@@ -193,7 +193,7 @@
             "args": [
                 "--begin-time", "2020-10-05 14:55:01.009", 
                 "--end-time", "2020-10-05 15:06:59.847", 
-                "--logpath", "/Users/zong/Works/x.2020.09.24-cmcc-2-2-manualconfig-kinds-of-issues/b01-pod1-core日志/05neu-core/f5-openstack-agent_CORE.log-05neutron1005", 
+                "--logpath", "/Users/zong/Works/x.2020.09.24-2-2-manualconfig-kinds-of-issues/b01-pod1-core日志/05neu-core/f5-openstack-agent_CORE.log-05neutron1005", 
                 "--filter", "req-1a9d27bf-6c9e-41f0-9f95-e03fc571c451",
                 "--output-dirpath", "./output/"
             ]
