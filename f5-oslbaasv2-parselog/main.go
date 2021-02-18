@@ -59,7 +59,7 @@ type RequestContext struct {
 	TimeNeutronAPIControllerPrepareRequestBody string `json:"time_neutron_api_controller_prepare_request_body"` // native
 	TimeNeutronAPIControllerDoCreate           string `json:"time_neutron_api_controller_do_create"`            // not native
 	TimeNeutronLBaaSPlugin                     string `json:"time_neutron_lbaas_plugin"`                        // not native
-	TimeNeutronLBaaSDriver                     string `json:"time_neutron_lbaas_driver"`                        // not used
+	TimeNeutronLBaaSDriver                     string `json:"time_neutron_lbaas_driver"`                        // not used; native
 	TimeF5Driver                               string `json:"time_f5driver"`
 	TimePortCreated                            string `json:"time_portcreated"`
 	TimeRPC                                    string `json:"time_rpc"`
@@ -79,14 +79,17 @@ type RequestContext struct {
 	BigipAccesses   []string `json:"bigip_accesses" my:"noprint"`
 
 	// Calculated data
-	DurationNeutron     time.Duration  `json:"duration_neutron"`
-	DurationPortCreated time.Duration  `json:"duration_portcreated"`
-	DurationF5Driver    time.Duration  `json:"duration_driver"`
-	DurationRPC         time.Duration  `json:"duration_rpc"`
-	DurationF5Agent     time.Duration  `json:"duration_agent"`
-	DurationBigip       time.Duration  `json:"duration_bigip"`
-	DurationTotal       time.Duration  `json:"duration_total"`
-	BigipRequestCount   map[string]int `json:"bigip_request_count"`
+	DurationNeutronAction   time.Duration  `json:"duration_neutron_take_action"`
+	DurationNeutronPRB      time.Duration  `json:"duration_neutron_prepare_request_body"`
+	DurationNeutronDoCreate time.Duration  `json:"duration_neutron_do_create"`
+	DurationNeutronTotal    time.Duration  `json:"duration_neutron_total"`
+	DurationPortCreated     time.Duration  `json:"duration_portcreated"`
+	DurationF5Driver        time.Duration  `json:"duration_driver"`
+	DurationRPC             time.Duration  `json:"duration_rpc"`
+	DurationF5Agent         time.Duration  `json:"duration_agent"`
+	DurationBigip           time.Duration  `json:"duration_bigip"`
+	DurationTotal           time.Duration  `json:"duration_total"`
+	BigipRequestCount       map[string]int `json:"bigip_request_count"`
 }
 
 var (
@@ -140,7 +143,7 @@ var (
 		// 2021-02-17 23:43:34.203 10483 DEBUG neutron_lbaas.services.loadbalancer.plugin [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method create_loadbalancer called with arguments (<neutron_lib.context.Context object at 0x7fa250ceae50>,) {'loadbalancer': {u'loadbalancer': {'description': '', u'admin_state_up': True, 'tenant_id': u'e04af77e23be443989be14e22240ea75', 'vip_address': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'vip_network_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'bandwidth': 0, 'flavor_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'provider': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', 'project_id': u'e04af77e23be443989be14e22240ea75', 'name': ''}}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"neutron_lbaas_plugin": MatchHandler{
 			KeyString: "neutron_lbaas.services.loadbalancer.plugin",
-			Pattern:   `%{DATETIME:time_neutron_lbaas_plugin} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method %{ACTION}_%{LBTYPESTR} called with arguments .*$`,
+			Pattern:   `%{DATETIME:time_neutron_lbaas_plugin} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method %{WORD} called with arguments .*$`,
 			Function:  nil,
 		},
 
@@ -752,7 +755,10 @@ func FKTheTime(datm string) time.Time {
 // CalculateDuration calculate the duration.
 func CalculateDuration() {
 	for _, rc := range ResultMap {
+		tNeutronAction := FKTheTime(rc.TimeNeutronAPIControllerTakeAction)
 		tNeutronPRB := FKTheTime(rc.TimeNeutronAPIControllerPrepareRequestBody)
+		tNeutronDoCreate := FKTheTime(rc.TimeNeutronAPIControllerDoCreate)
+		tNeutronPlugin := FKTheTime(rc.TimeNeutronLBaaSPlugin)
 		tDriver := FKTheTime(rc.TimeF5Driver)
 		tPortCreated := FKTheTime(rc.TimePortCreated)
 		tRPC := FKTheTime(rc.TimeRPC)
@@ -762,7 +768,10 @@ func CalculateDuration() {
 		rc.TimestampELK = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%03dZ",
 			tNeutronPRB.Year(), tNeutronPRB.Month(), tNeutronPRB.Day(),
 			tNeutronPRB.Hour(), tNeutronPRB.Minute(), tNeutronPRB.Second(), tNeutronPRB.Nanosecond()/1e6)
-		rc.DurationNeutron = tDriver.Sub(tNeutronPRB)
+		rc.DurationNeutronAction = tNeutronPRB.Sub(tNeutronAction)
+		rc.DurationNeutronPRB = tNeutronDoCreate.Sub(tNeutronPRB)
+		rc.DurationNeutronDoCreate = tNeutronPlugin.Sub(tNeutronDoCreate)
+		rc.DurationNeutronTotal = tDriver.Sub(tNeutronPRB)
 		rc.DurationF5Driver = tRPC.Sub(tDriver)
 		rc.DurationPortCreated = tPortCreated.Sub(tDriver)
 		rc.DurationRPC = tAgent.Sub(tRPC)
