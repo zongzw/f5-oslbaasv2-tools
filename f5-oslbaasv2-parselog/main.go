@@ -55,14 +55,17 @@ type RequestContext struct {
 	Result        string `json:"result"`
 
 	// phrase timestamp
-	TimeNeutronAPI   string `json:"time_neutron_api"`
-	TimeNeutronLBaaS string `json:"time_neutron_lbaas"`
-	TimeF5Driver     string `json:"time_f5driver"`
-	TimePortCreated  string `json:"time_portcreated"`
-	TimeRPC          string `json:"time_rpc"`
-	TimeF5Agent      string `json:"time_f5agent"`
-	TimeUpdateStatus string `json:"time_update_status"`
-	TimestampELK     string `json:"@timestamp" my:"noprint"`
+	TimeNeutronAPIControllerTakeAction         string `json:"time_neutron_api_controller_take_action"`          // not native
+	TimeNeutronAPIControllerPrepareRequestBody string `json:"time_neutron_api_controller_prepare_request_body"` // native
+	TimeNeutronAPIControllerDoCreate           string `json:"time_neutron_api_controller_do_create"`            // not native
+	TimeNeutronLBaaSPlugin                     string `json:"time_neutron_lbaas_plugin"`                        // not native
+	TimeNeutronLBaaSDriver                     string `json:"time_neutron_lbaas_driver"`                        // not used
+	TimeF5Driver                               string `json:"time_f5driver"`
+	TimePortCreated                            string `json:"time_portcreated"`
+	TimeRPC                                    string `json:"time_rpc"`
+	TimeF5Agent                                string `json:"time_f5agent"`
+	TimeUpdateStatus                           string `json:"time_update_status"`
+	TimestampELK                               string `json:"@timestamp" my:"noprint"`
 
 	// access dbv2  analytics metrics
 	TmpDBBeginTime string `json:"time_db_begin" my:"noprint"`
@@ -76,14 +79,14 @@ type RequestContext struct {
 	BigipAccesses   []string `json:"bigip_accesses" my:"noprint"`
 
 	// Calculated data
-	DurationNeutronDriver     time.Duration  `json:"duration_neutron_driver"`
-	DurationDriverPortCreated time.Duration  `json:"duration_driver_portcreated"`
-	DurationDriverRPC         time.Duration  `json:"duration_driver_rpc"`
-	DurationRPCAgent          time.Duration  `json:"duration_rpc_agent"`
-	DurationAgentUpdateStatus time.Duration  `json:"duration_agent_updatestatus"`
-	DurationOperationTotal    time.Duration  `json:"duration_total"`
-	BigipRequestCount         map[string]int `json:"bigip_request_count"`
-	BigipDurationTotal        time.Duration  `json:"bigip_duration_total"`
+	DurationNeutron     time.Duration  `json:"duration_neutron"`
+	DurationPortCreated time.Duration  `json:"duration_portcreated"`
+	DurationF5Driver    time.Duration  `json:"duration_driver"`
+	DurationRPC         time.Duration  `json:"duration_rpc"`
+	DurationF5Agent     time.Duration  `json:"duration_agent"`
+	DurationBigip       time.Duration  `json:"duration_bigip"`
+	DurationTotal       time.Duration  `json:"duration_total"`
+	BigipRequestCount   map[string]int `json:"bigip_request_count"`
 }
 
 var (
@@ -107,25 +110,46 @@ var (
 
 	pLBaaSv2 = map[string]MatchHandler{
 
+		// 2021-02-17 23:43:34.177 10483 DEBUG neutron.api.v2.base [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] neutron.api.v2.base.Controller method create called with arguments () {'body': {u'loadbalancer': {u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', u'bandwidth': 0, u'admin_state_up': True}}, 'request': <Request at 0x7fa250b4bf50 POST http://10.145.73.123:9696/v2.0/lbaas/loadbalancers>} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
+
+		"neutron_api_v2_base_controller_take_action": MatchHandler{
+			KeyString: "neutron.api.v2.base",
+			Pattern:   `%{DATETIME:time_neutron_api_controller_take_action} .* neutron.api.v2.base \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] neutron.api.v2.base.Controller method %{ACTION:operation_type} called with arguments.*$`,
+			Function:  nil,
+		},
+
 		// 2020-09-27 19:22:54.485 68316 DEBUG neutron.api.v2.base
 		// [req-8cadad28-8315-45ca-818c-6a229dfb73e1 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body:
 		// {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		// prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713
 
 		// %(user)s %(tenant)s %(domain)s %(user_domain)s %(project_domain)s
-		"neutron_api_v2_base": MatchHandler{
+		"neutron_api_v2_base_controller_prepare_request_body": MatchHandler{
 			KeyString: "neutron.api.v2.base",
-			Pattern: `%{DATETIME:time_neutron_api} .* neutron.api.v2.base \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
-				`Request body: %{JSON:request_body} prepare_request_body .*$`,
-			Function: nil,
+			Pattern:   `%{DATETIME:time_neutron_api_controller_prepare_request_body} .* neutron.api.v2.base \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] Request body: %{JSON:request_body} prepare_request_body .*$`,
+			Function:  nil,
+		},
+
+		// 2021-02-17 23:43:34.203 10483 DEBUG neutron.api.v2.base [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] static method do_create called with arguments ({u'loadbalancer': {'description': '', u'admin_state_up': True, 'tenant_id': u'e04af77e23be443989be14e22240ea75', 'vip_address': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'vip_network_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'bandwidth': 0, 'flavor_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'provider': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', 'project_id': u'e04af77e23be443989be14e22240ea75', 'name': ''}},) {} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
+		"neutron_api_v2_base_controller_do_create": MatchHandler{
+			KeyString: "neutron.api.v2.base",
+			Pattern:   `%{DATETIME:time_neutron_api_controller_do_create} .* neutron.api.v2.base \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] static method do_create called with arguments .*$`,
+			Function:  nil,
+		},
+
+		// 2021-02-17 23:43:34.203 10483 DEBUG neutron_lbaas.services.loadbalancer.plugin [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method create_loadbalancer called with arguments (<neutron_lib.context.Context object at 0x7fa250ceae50>,) {'loadbalancer': {u'loadbalancer': {'description': '', u'admin_state_up': True, 'tenant_id': u'e04af77e23be443989be14e22240ea75', 'vip_address': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'vip_network_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'bandwidth': 0, 'flavor_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'provider': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', 'project_id': u'e04af77e23be443989be14e22240ea75', 'name': ''}}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
+		"neutron_lbaas_plugin": MatchHandler{
+			KeyString: "neutron_lbaas.services.loadbalancer.plugin",
+			Pattern:   `%{DATETIME:time_neutron_lbaas_plugin} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method %{ACTION}_%{LBTYPESTR} called with arguments .*$`,
+			Function:  nil,
 		},
 
 		// 2020-11-06 21:11:05.844 708196 INFO neutron_lbaas.services.loadbalancer.plugin
 		// [req-b5b8896b-cfa2-4adc-b5c4-ebd986e24a5f a975df1b007d413c8ebc2e90d46232cf 94f2338bf383405db151c4784c0e358c - default default]
 		// Calling driver operation ListenerManager.delete
-		"neutron_lbaas_entry": MatchHandler{
+		"neutron_lbaas_driver": MatchHandler{
 			KeyString: "neutron_lbaas.services.loadbalancer.plugin",
-			Pattern: `%{DATETIME:time_neutron_lbaas} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_neutron_lbaas_driver} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} .*\] ` +
 				`Calling driver operation %{LBTYPE:object_type}Manager.%{ACTION:operation_type}.*$`,
 			Function: nil,
 		},
@@ -728,7 +752,7 @@ func FKTheTime(datm string) time.Time {
 // CalculateDuration calculate the duration.
 func CalculateDuration() {
 	for _, rc := range ResultMap {
-		tNeutron := FKTheTime(rc.TimeNeutronAPI)
+		tNeutronPRB := FKTheTime(rc.TimeNeutronAPIControllerPrepareRequestBody)
 		tDriver := FKTheTime(rc.TimeF5Driver)
 		tPortCreated := FKTheTime(rc.TimePortCreated)
 		tRPC := FKTheTime(rc.TimeRPC)
@@ -736,32 +760,32 @@ func CalculateDuration() {
 		tUpdate := FKTheTime(rc.TimeUpdateStatus)
 
 		rc.TimestampELK = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%03dZ",
-			tNeutron.Year(), tNeutron.Month(), tNeutron.Day(),
-			tNeutron.Hour(), tNeutron.Minute(), tNeutron.Second(), tNeutron.Nanosecond()/1e6)
-		rc.DurationNeutronDriver = tDriver.Sub(tNeutron)
-		rc.DurationDriverRPC = tRPC.Sub(tDriver)
-		rc.DurationDriverPortCreated = tPortCreated.Sub(tDriver)
-		rc.DurationRPCAgent = tAgent.Sub(tRPC)
-		rc.DurationAgentUpdateStatus = tUpdate.Sub(tAgent)
-		rc.DurationOperationTotal = tUpdate.Sub(tNeutron)
+			tNeutronPRB.Year(), tNeutronPRB.Month(), tNeutronPRB.Day(),
+			tNeutronPRB.Hour(), tNeutronPRB.Minute(), tNeutronPRB.Second(), tNeutronPRB.Nanosecond()/1e6)
+		rc.DurationNeutron = tDriver.Sub(tNeutronPRB)
+		rc.DurationF5Driver = tRPC.Sub(tDriver)
+		rc.DurationPortCreated = tPortCreated.Sub(tDriver)
+		rc.DurationRPC = tAgent.Sub(tRPC)
+		rc.DurationF5Agent = tUpdate.Sub(tAgent)
+		rc.DurationTotal = tUpdate.Sub(tNeutronPRB)
 
 		biplen := len(rc.BigipAccesses)
 		if biplen%2 != 0 {
-			rc.BigipDurationTotal = time.Duration(-2) * time.Millisecond
+			rc.DurationBigip = time.Duration(-2) * time.Millisecond
 			continue
 		}
 		sort.Strings(rc.BigipAccesses)
-		rc.BigipDurationTotal = time.Duration(0) * time.Millisecond
+		rc.DurationBigip = time.Duration(0) * time.Millisecond
 
 		for i := 0; i < len(rc.BigipAccesses)-1; i = i + 2 {
 			tms := strings.Split(rc.BigipAccesses[i], "|")
 			tme := strings.Split(rc.BigipAccesses[i+1], "|")
 			if (tms[1] != "request" || tme[1] != "reply") && tms[0] != tme[0] {
-				rc.BigipDurationTotal = time.Duration(-3) * time.Millisecond
+				rc.DurationBigip = time.Duration(-3) * time.Millisecond
 				break
 			}
 
-			rc.BigipDurationTotal = rc.BigipDurationTotal + FKTheTime(tme[0]).Sub(FKTheTime(tms[0]))
+			rc.DurationBigip = rc.DurationBigip + FKTheTime(tme[0]).Sub(FKTheTime(tms[0]))
 		}
 	}
 }
@@ -826,14 +850,29 @@ func TestParse(k string, v string, g *grok.Grok) (map[string]string, error) {
 // TestCases test cases
 func TestCases() map[string][]string {
 	return map[string][]string{
-		"neutron_api_v2_base": []string{
+		"neutron_api_v2_base_controller_take_action": []string{
+			// loadbalancer
+			`2021-02-17 23:43:34.177 10483 DEBUG neutron.api.v2.base [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] neutron.api.v2.base.Controller method create called with arguments () {'body': {u'loadbalancer': {u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', u'bandwidth': 0, u'admin_state_up': True}}, 'request': <Request at 0x7fa250b4bf50 POST http://10.145.73.123:9696/v2.0/lbaas/loadbalancers>} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66`,
+		},
+
+		"neutron_api_v2_base_controller_prepare_request_body": []string{
 			// loadbalancer
 			`2020-10-05 10:20:15.791 117825 DEBUG neutron.api.v2.base [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body: {u'loadbalancer': {u'vip_subnet_id': u'd79ef712-c1e3-4860-9343-d1702b9976aa', u'provider': u'core', u'name': u'JL-B01-POD1-CORE-LB-7', u'admin_state_up': True}} prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713`,
 			// member
 			`2020-10-05 14:50:24.795 117812 DEBUG neutron.api.v2.base [req-be08ea84-f721-46da-b24e-6e2c249af84e 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default] Request body: {u'member': {u'subnet_id': u'5ee954be-8a76-4e42-b7a9-13a08e5330ce', u'address': u'10.230.3.39', u'protocol_port': 39130, u'weight': 5, u'admin_state_up': True}} prepare_request_body /usr/lib/python2.7/site-packages/neutron/api/v2/base.py:713`,
 		},
 
-		"neutron_lbaas_entry": []string{
+		"neutron_api_v2_base_controller_do_create": []string{
+			// loadbalancer
+			`2021-02-17 23:43:34.203 10483 DEBUG neutron.api.v2.base [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] static method do_create called with arguments ({u'loadbalancer': {'description': '', u'admin_state_up': True, 'tenant_id': u'e04af77e23be443989be14e22240ea75', 'vip_address': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'vip_network_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'bandwidth': 0, 'flavor_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'provider': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', 'project_id': u'e04af77e23be443989be14e22240ea75', 'name': ''}},) {} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66`,
+		},
+
+		"neutron_lbaas_plugin": []string{
+			// loadbalancer
+			`2021-02-17 23:43:34.203 10483 DEBUG neutron_lbaas.services.loadbalancer.plugin [req-953ac2ec-57b7-42bd-8daa-ddd30035ef80 57efef668e094651bc2058f2c7b6a09c e04af77e23be443989be14e22240ea75 - default default] neutron_lbaas.services.loadbalancer.plugin.LoadBalancerPluginv2 method create_loadbalancer called with arguments (<neutron_lib.context.Context object at 0x7fa250ceae50>,) {'loadbalancer': {u'loadbalancer': {'description': '', u'admin_state_up': True, 'tenant_id': u'e04af77e23be443989be14e22240ea75', 'vip_address': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'vip_network_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'bandwidth': 0, 'flavor_id': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, 'provider': <neutron_lib.constants.Sentinel object at 0x7fa257f16a10>, u'vip_subnet_id': u'8d957135-5fd1-45cb-8884-a5ae0f12f2f4', 'project_id': u'e04af77e23be443989be14e22240ea75', 'name': ''}}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66`,
+		},
+
+		"neutron_lbaas_driver": []string{
 			// member.create
 			"2020-11-05 03:05:13.382 423178 INFO neutron_lbaas.services.loadbalancer.plugin [req-784572e6-4622-477e-8500-ab43539b86de a975df1b007d413c8ebc2e90d46232cf 0699110021c743249033aad76967f42f - default default] Calling driver operation MemberManager.create",
 			// listener.delete
