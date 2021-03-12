@@ -55,11 +55,11 @@ type RequestContext struct {
 	Result        string `json:"result"`
 
 	// phrase timestamp
-	TimeNeutronAPIControllerTakeAction         string `json:"time_neutron_api_controller_take_action"`          // not native
-	TimeNeutronAPIControllerPrepareRequestBody string `json:"time_neutron_api_controller_prepare_request_body"` // native
-	TimeNeutronAPIControllerDoCreate           string `json:"time_neutron_api_controller_do_create"`            // not native
-	TimeNeutronLBaaSPlugin                     string `json:"time_neutron_lbaas_plugin"`                        // not native
-	TimeNeutronLBaaSDriver                     string `json:"time_neutron_lbaas_driver"`                        // not used; native
+	TimeNeutronAPIControllerTakeAction         string `json:"time_neutron_api_controller_take_action" my:"noprint"` // not native
+	TimeNeutronAPIControllerPrepareRequestBody string `json:"time_neutron_api_controller_prepare_request_body"`     // native
+	TimeNeutronAPIControllerDoCreate           string `json:"time_neutron_api_controller_do_create" my:"noprint"`   // not native
+	TimeNeutronLBaaSPlugin                     string `json:"time_neutron_lbaas_plugin" my:"noprint"`               // not native
+	TimeNeutronLBaaSDriver                     string `json:"time_neutron_lbaas_driver"`                            // not used; native
 	TimeF5Driver                               string `json:"time_f5driver"`
 	TimePortCreated                            string `json:"time_portcreated"`
 	TimeRPC                                    string `json:"time_rpc"`
@@ -79,9 +79,9 @@ type RequestContext struct {
 	BigipAccesses   []string `json:"bigip_accesses" my:"noprint"`
 
 	// Calculated data
-	DurationNeutronAction   time.Duration  `json:"duration_neutron_take_action"`
-	DurationNeutronPRB      time.Duration  `json:"duration_neutron_prepare_request_body"`
-	DurationNeutronDoCreate time.Duration  `json:"duration_neutron_do_create"`
+	DurationNeutronAction   time.Duration  `json:"duration_neutron_take_action" my:"noprint"`
+	DurationNeutronPRB      time.Duration  `json:"duration_neutron_prepare_request_body" my:"noprint"`
+	DurationNeutronDoCreate time.Duration  `json:"duration_neutron_do_create" my:"noprint"`
 	DurationNeutronTotal    time.Duration  `json:"duration_neutron_total"`
 	DurationPortCreated     time.Duration  `json:"duration_portcreated"`
 	DurationF5Driver        time.Duration  `json:"duration_driver"`
@@ -609,7 +609,9 @@ func OutputResult(filepath string) {
 			f := v.Field(i)
 			switch f.Kind() {
 			case reflect.String:
-				dataLine = append(dataLine, fmt.Sprintf("\"%s\"", f.String()))
+				dataItem := fmt.Sprintf("\"%s\"", f.String())
+				dataItem = strings.ReplaceAll(dataItem, ",", " ")
+				dataLine = append(dataLine, dataItem)
 			case reflect.Int64: // support only time.Duration for now.
 				dataLine = append(dataLine, fmt.Sprintf("%d", f.Int()/1e6))
 			case reflect.Map: // support only map[string]int for now.
