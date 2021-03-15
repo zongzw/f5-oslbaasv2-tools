@@ -3,7 +3,7 @@
   with_fileglob:
     - ./*.sh
 
-- name: get proj_{{ index_pj }} id
+- name: get {{ project_prefix }}{{ index_pj }} id
   shell: |
-    source {{ openrc }} && openstack project show proj_{{ index_pj }} --format value --column id
+    source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
   register: project_id

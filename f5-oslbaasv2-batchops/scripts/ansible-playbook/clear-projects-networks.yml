@@ -7,7 +7,7 @@
     - name: list network names
       shell: |
         source {{ openrc }} 
-        openstack network list --format value --column ID --column Name | grep net- | cut -d ' ' -f1
+        openstack network list --format value --column ID --column Name | grep {{ network_prefix }} | cut -d ' ' -f1
       register: network_names
       tags:
         - network
@@ -21,7 +21,7 @@
     - name: list project names
       shell: |
         source {{ openrc }}
-        openstack project list --format value --column ID --column Name | grep proj_ | cut -d ' ' -f1
+        openstack project list --format value --column ID --column Name | grep {{ project_prefix }} | cut -d ' ' -f1
       register: project_names
       tags:
         - project

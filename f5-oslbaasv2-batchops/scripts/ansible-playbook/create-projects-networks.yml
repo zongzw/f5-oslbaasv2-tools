@@ -13,8 +13,8 @@
     
     - name: Create projects
       shell: |
-        source {{ openrc }} && openstack project create --or-show proj_{{ item }} \
-        && openstack role add --project proj_{{ item }} --user admin admin
+        source {{ openrc }} && openstack project create --or-show {{ project_prefix }}{{ item }} \
+        && openstack role add --project {{ project_prefix }}{{ item }} --user admin admin
       with_items: "{{ test_range }}"
       tags:
         - project
@@ -24,7 +24,7 @@
         source {{ openrc }}
         for n in loadbalancer healthmonitor l7policy listener member pool; do
           echo -n "$n .. " 
-          neutron --os-project-name proj_{{ item }} quota-update --$n -1 > /dev/null 2>&1
+          neutron --os-project-name {{ project_prefix }}{{ item }} quota-update --$n -1 > /dev/null 2>&1
         done
       with_items: "{{ test_range }}"
       tags:
@@ -33,12 +33,12 @@
     - name: Create networks
       shell: |
         source {{ openrc }}
-        project_id=`openstack project show proj_{{ item }} --format value --column id`
-        exists=`neutron net-list --format value --column name | grep "^net-{{ item }}$"`
+        project_id=`openstack project show {{ project_prefix }}{{ item }} --format value --column id`
+        exists=`neutron net-list --format value --column name | grep "^{{ network_prefix }}{{ item }}$"`
         set -e
         if [ $? -eq 0 -a "$exists" != "net-{{ item }}" ]; then
-          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network extnet net-{{ item }}
-          neutron subnet-create --tenant-id $project_id --name subnet-{{ item }} net-{{ item }} 100.{{ item }}.0.0/16
+          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network {{ physical_network }} {{ network_prefix }}{{ item }} --provider:segmentation_id {{ 200 + item | int }}
+          neutron subnet-create --tenant-id $project_id --name {{ subnet_prefix }}{{ item }} {{ network_prefix }}{{ item }} 100.{{ item }}.0.0/16
         fi
       with_items: "{{ test_range }}"
       tags:

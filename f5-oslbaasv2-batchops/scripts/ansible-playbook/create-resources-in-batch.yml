@@ -25,10 +25,10 @@
       shell: |
         source {{ openrc }}
         set -e
-        exists=`/tmp/if-exists-resource.sh loadbalancers lb-{{ index_pj }} {{ neutrondb_password }}`
+        exists=`/tmp/if-exists-resource.sh loadbalancers lb-{{ index_pj }} {{ neutrondb_password }} {{ neutrondb_name }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
-            --name lb-{{ index_pj }} --tenant-id {{ project_id.stdout }} subnet-{{ index_pj }}
+            --name lb-{{ index_pj }} --tenant-id {{ project_id.stdout }} {{subnet_prefix}}{{ index_pj }}
         fi
       tags: loadbalancer
 
@@ -36,8 +36,8 @@
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
-        exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }} {{ neutrondb_name }}
+        exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }} {{ neutrondb_password }} {{ neutrondb_name }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
             --name pl-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
@@ -51,8 +51,8 @@
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
-        exists=`/tmp/if-exists-resource.sh healthmonitors hm-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }} {{ neutrondb_name }}
+        exists=`/tmp/if-exists-resource.sh healthmonitors hm-{{ index_pj }}-{{ item }} {{ neutrondb_password }} {{ neutrondb_name }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-healthmonitor-create \
             --name hm-{{ index_pj }}-{{ item }}  --tenant-id {{ project_id.stdout }} \
@@ -66,8 +66,8 @@
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
-        exists=`/tmp/if-exists-resource.sh listeners ls-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }} {{ neutrondb_name }}
+        exists=`/tmp/if-exists-resource.sh listeners ls-{{ index_pj }}-{{ item }} {{ neutrondb_password }} {{ neutrondb_name }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
             --name ls-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
@@ -81,12 +81,12 @@
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }}
-        exists=`/tmp/if-exists-resource.sh members mb-{{ index_pj }}-{{ item }} {{ neutrondb_password }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_password }} {{ neutrondb_name }}
+        exists=`/tmp/if-exists-resource.sh members mb-{{ index_pj }}-{{ item }} {{ neutrondb_password }} {{ neutrondb_name }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
             --name mb-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
-            --protocol-port 80 --subnet subnet-{{ index_pj }} \
+            --protocol-port 80 --subnet {{ subnet_prefix }}{{ index_pj }} \
             --address {{ index_pj|int + 1 }}.1.{{ item % (count_pl|int) }}.{{ item % 253 + 1 }} \
             pl-{{ index_pj }}-{{ item % (count_pl|int) }}
         fi
