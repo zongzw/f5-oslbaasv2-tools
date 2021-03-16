@@ -45,6 +45,8 @@
             --protocol HTTP --lb-algorithm ROUND_ROBIN
         fi
       with_items: "{{ range(0 , count_pl|int, 1) | list }}"
+      loop_control:
+        label: pl-{{ index_pj }}-{{ item }}
       tags: pool
 
     - name: create healthmonitors
@@ -60,6 +62,8 @@
             --delay 15 --timeout 15 --max-retries 5 --type PING
         fi
       with_items: "{{ range(0 , count_hm|int, 1) | list }}"
+      loop_control:
+        label: hm-{{ index_pj }}-{{ item }}
       tags: healthmonitor
 
     - name: create listeners
@@ -75,6 +79,8 @@
             --protocol HTTP --protocol-port {{ item }}
         fi
       with_items: "{{ range(0 , count_ls|int, 1) | list }}"
+      loop_control:
+        label: ls-{{ index_pj }}-{{ item }}
       tags: listener
     
     - name: create members
@@ -91,4 +97,6 @@
             pl-{{ index_pj }}-{{ item % (count_pl|int) }}
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"
+      loop_control:
+        label: mb-{{ index_pj }}-{{ item }}
       tags: member
