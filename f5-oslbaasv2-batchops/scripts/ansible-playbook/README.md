@@ -11,7 +11,7 @@ Files in this folder is another way for creating lbaasv2 resources in batch, com
 ### 1. Preparation
 
 ```
--> [Run once] $ ansible-playbook -i env-lab.ini -e@vars.yml create-prjects-networks.yml
+-> [Run once] $ ansible-playbook -i env-lab.ini -e@vars.yml create-projects-networks.yml
 ```
 
 This command is used to create projects and networks(including subnets) before resource creation.
