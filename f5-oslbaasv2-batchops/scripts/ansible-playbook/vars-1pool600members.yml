@@ -1,0 +1,11 @@
+---
+
+projects: 200
+
+testsuites:
+  - loadbalancer: 1
+    listener: 1
+    pool: 1
+    healthmonitor: 1
+    member: 600
+
