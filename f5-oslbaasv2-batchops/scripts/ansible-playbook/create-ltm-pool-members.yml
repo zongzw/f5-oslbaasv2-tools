@@ -1,0 +1,55 @@
+---
+
+- hosts: bigips
+  gather_facts: false
+  remote_user: root
+  tasks:
+    - name: debug test
+      debug: msg="create pool with {{ count }} members ..."
+
+    - name: get timestamp
+      shell: date +%s
+      register: test_timestamp
+      run_once: true
+    
+    - name: show test_timestamp
+      debug: msg="{{ test_timestamp.stdout }}"
+
+    - name: create pool in Common
+      bigip_pool:
+        name: "pl-{{ test_timestamp.stdout }}"
+        partition: Common
+        state: present
+        lb_method: least-connections-member
+        monitor_type: single
+        monitors:
+          - http
+        provider:
+          user: admin
+          server: "{{ inventory_hostname }}"
+          password: "{{ admin_password }}"
+          validate_certs: false
+
+    - name: Add pool members
+      bigip_pool_member:
+        pool: "pl-{{ test_timestamp.stdout }}"
+        partition: Common
+        host: "{{ ipA }}.{{ ipB }}.{{ ipC }}.{{ ipD }}"
+        port: 80
+        description: web server {{ item }}
+        connection_limit: 100
+        rate_limit: 50
+        ratio: 2
+        provider:
+          user: admin
+          server: "{{ inventory_hostname }}"
+          password: "{{ admin_password }}"
+          validate_certs: false
+      vars:
+        ipA: "{{ ((test_timestamp.stdout | int) % 65535 / 256) | int }}"
+        ipB: "{{ ((test_timestamp.stdout | int) % 256) | int }}"
+        ipC: "{{ (item / 254) | int }}"
+        ipD: "{{ item % 254 }}"
+      with_items: "{{ range(1, count | int, 1) | list }}"
+      loop_control:
+        label: "{{ item }} - {{ ipA }}.{{ ipB }}.{{ ipC }}.{{ ipD }}"
