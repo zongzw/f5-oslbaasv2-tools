@@ -93,7 +93,7 @@
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
             --name mb-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
             --protocol-port 80 --subnet {{ subnet_prefix }}{{ index_pj }} \
-            --address {{ index_pj|int + 1 }}.1.{{ item / (count_pl|int) }}.{{ item % 253 + 1 }} \
+            --address {{ index_pj|int + 1 }}.1.{{ (item / 253) | int }}.{{ item % 253 + 1 }} \
             pl-{{ index_pj }}-{{ item % (count_pl|int) }}
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"
