@@ -1,6 +1,6 @@
 ---
 
-projects: 200
+projects: 5
 
 testsuites:
   - loadbalancer: 1
