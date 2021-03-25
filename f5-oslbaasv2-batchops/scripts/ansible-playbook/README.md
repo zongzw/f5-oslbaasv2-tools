@@ -16,6 +16,8 @@ Files in this folder is another way for creating lbaasv2 resources in batch, com
 
 This command is used to create projects and networks(including subnets) before resource creation.
 
+The count to be created is defined in vars-XX.yml file, like `projects: 200`
+
 ### 2. Resource Creation
 
 ```
