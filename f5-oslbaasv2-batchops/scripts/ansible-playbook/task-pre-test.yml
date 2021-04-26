@@ -2,8 +2,4 @@
   copy: src={{ item }} dest=/tmp/ force=yes mode=0755
   with_fileglob:
     - ./*.sh
-
-- name: get {{ project_prefix }}{{ index_pj }} id
-  shell: |
-    source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
-  register: project_id
+    - ./*.sql

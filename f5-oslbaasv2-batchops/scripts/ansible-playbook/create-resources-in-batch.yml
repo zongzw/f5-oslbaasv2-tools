@@ -21,6 +21,17 @@
         - healthmonitor
         - member
 
+    - name: get {{ project_prefix }}{{ index_pj }} id
+      shell: |
+        source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
+      register: project_id
+      tags:
+        - loadbalancer
+        - listener
+        - pool
+        - healthmonitor
+        - member
+
     - name: create loadbalancer
       shell: |
         source {{ openrc }}
