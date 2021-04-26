@@ -1,7 +1,8 @@
 #!/bin/bash
 
 cdir=`cd $(dirname $0); pwd`
-progs="f5-oslbaasv2-batchops f5-oslbaasv2-parselog f5-oslbaasv2-taillog"
+# progs="f5-oslbaasv2-batchops f5-oslbaasv2-parselog f5-oslbaasv2-taillog"
+progs="f5-oslbaasv2-parselog"
 
 for n in $progs; do
     docker run --rm \
@@ -10,9 +11,10 @@ for n in $progs; do
         bash -c '
             mkdir -p /usr/src/'$n'/dist
             rm -rf /usr/src/'$n'/dist
-echo nameserver 114.114.114.114 > /etc/resolv.conf
+            echo nameserver 114.114.114.114 > /etc/resolv.conf
             export GOPROXY=https://goproxy.cn
-            for GOOS in darwin linux; do
+            # for GOOS in darwin linux; do
+            for GOOS in linux; do
                 for GOARCH in amd64; do
                     export GOOS GOARCH
                     echo '$n'-$GOOS-$GOARCH ...
