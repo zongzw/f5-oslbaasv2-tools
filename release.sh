@@ -1,17 +1,12 @@
 #!/bin/bash
 
-./build.sh
+cdir=`cd $(dirname $0); pwd`
+$cdir/build.sh
 
-targetdir=f5-oslbaasv2-tools-release
-mkdir $targetdir
+targetdir=$cdir/f5-oslbaasv2-tools-release
+mkdir -p $targetdir
 
-# for n in f5-oslbaasv2-batchops f5-oslbaasv2-parselog f5-oslbaasv2-taillog; do
-for n in f5-oslbaasv2-batchops f5-oslbaasv2-parselog; do
-    for m in dist scripts; do
-        if [ -d $n/$m ]; then
-            cp -r $n/$m $targetdir
-        fi
-    done 
-done
+cp -r $cdir/f5-oslbaasv2-batchops/scripts/ansible-scripts $targetdir/f5-oslbaasv2-batchops
+cp -r $cdir/f5-oslbaasv2-parselog/dist/f5-oslbaasv2-parselog-linux-amd64 $targetdir
 
-mkdir $targetdir/output
+mkdir -p $targetdir/output
