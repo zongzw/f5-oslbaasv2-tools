@@ -1,3 +1,5 @@
+*`f5-oslbaasv2-batchops` is deprecated. Use the new incubated ansible-based scripts [./scripts/ansible-playbook](./scripts/ansible-playbook) for batch lbaasv2 resource creation automation.*
+
 # f5-oslbaasv2-batchops
 
 This is a program(in golang) to help running `neutron` commands in batch.
