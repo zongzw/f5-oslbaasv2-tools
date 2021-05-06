@@ -1,22 +1,24 @@
 #!/bin/bash
 
-if [ $# -ne 4 ]; then
-    echo "<lbname> <dbhost> <dbpass> <dbname>"
+if [ $# -ne 1 ]; then
+    echo "<lbname>"
     exit 1
 fi
 
 timeout=40
 delay=3
 
+MYSQL_CMD="mysql -uneutron -h$NEUTRONDB_HOSTNAME -p$NEUTRONDB_PASSWORD $NEUTRONDB_DATABASE"
+
 while [ $timeout -gt 0 ]; do
     timeout=$(($timeout - 1))
-    count=`echo "select count(*) as count from lbaas_loadbalancers where name = '$1';" | mysql -uneutron -h$2 -p$3 $4 | grep -v count`
+    count=`echo "select count(*) as count from lbaas_loadbalancers where name = '$1';" | $MYSQL_CMD | grep -v count`
     if [ $count -ge 2 ]; then
         echo "multiple lb named $1"
         exit 1
     fi
 
-    status=`echo "select provisioning_status from lbaas_loadbalancers where name = '$1';" | mysql -uneutron -h$2 -p$3 $4 | grep -v provisioning_status`
+    status=`echo "select provisioning_status from lbaas_loadbalancers where name = '$1';" | $MYSQL_CMD | grep -v provisioning_status`
     if [ $? -ne 0 -o "$status" = "" ]; then
         echo "no loadbalancer named $1, quit"
         exit 1
@@ -31,5 +33,5 @@ while [ $timeout -gt 0 ]; do
 done
 
 echo "loadbalancer: $1: $status, timeout, reset provisioning_status to ERROR, quit." 
-echo "update lbaas_loadbalancers set provisioning_status = 'ERROR' where name = '$1';" | mysql -uneutron -h$2 -p$3 $4
+echo "update lbaas_loadbalancers set provisioning_status = 'ERROR' where name = '$1';" | $MYSQL_CMD
 exit 1

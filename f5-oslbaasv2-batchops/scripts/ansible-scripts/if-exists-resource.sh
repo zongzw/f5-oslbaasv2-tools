@@ -1,12 +1,14 @@
 #!/bin/bash
 
 set -x 
-if [ $# -ne 5 ]; then
-    echo "arguments: <loadbalancers|listeners|pools|members|healthmonitors> <name> <dbhost> <dbpass> <dbname>"
+if [ $# -ne 2 ]; then
+    echo "arguments: <loadbalancers|listeners|pools|members|healthmonitors> <name>"
     exit 1
 fi
 
-count=`echo "select count(*) as count from lbaas_$1 where name = '$2';" | mysql -uneutron -h$3 -p$4 $5 | grep -v count`
+MYSQL_CMD="mysql -uneutron -h$NEUTRONDB_HOSTNAME -p$NEUTRONDB_PASSWORD $NEUTRONDB_DATABASE"
+
+count=`echo "select count(*) as count from lbaas_$1 where name = '$2';" | $MYSQL_CMD | grep -v count`
 if [ $? -ne 0 ]; then
     echo "failed to check count from db"
     exit 1

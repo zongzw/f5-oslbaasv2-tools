@@ -36,19 +36,23 @@
       shell: |
         source {{ openrc }}
         set -e
-        exists=`/tmp/if-exists-resource.sh loadbalancers lb-{{ index_pj }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}`
+        exists=`/tmp/if-exists-resource.sh loadbalancers lb-{{ index_pj }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
             --name lb-{{ index_pj }} --tenant-id {{ project_id.stdout }} {{subnet_prefix}}{{ index_pj }}
         fi
       tags: loadbalancer
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
 
     - name: create pools
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}
-        exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }}
+        exists=`/tmp/if-exists-resource.sh pools pl-{{ index_pj }}-{{ item }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
             --name pl-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
@@ -59,13 +63,17 @@
       loop_control:
         label: pl-{{ index_pj }}-{{ item }}
       tags: pool
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
 
     - name: create healthmonitors
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}
-        exists=`/tmp/if-exists-resource.sh healthmonitors hm-{{ index_pj }}-{{ item }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }}
+        exists=`/tmp/if-exists-resource.sh healthmonitors hm-{{ index_pj }}-{{ item }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-healthmonitor-create \
             --name hm-{{ index_pj }}-{{ item }}  --tenant-id {{ project_id.stdout }} \
@@ -76,13 +84,17 @@
       loop_control:
         label: hm-{{ index_pj }}-{{ item }}
       tags: healthmonitor
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
 
     - name: create listeners
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}
-        exists=`/tmp/if-exists-resource.sh listeners ls-{{ index_pj }}-{{ item }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }}
+        exists=`/tmp/if-exists-resource.sh listeners ls-{{ index_pj }}-{{ item }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
             --name ls-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
@@ -93,13 +105,17 @@
       loop_control:
         label: ls-{{ index_pj }}-{{ item }}
       tags: listener
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
     
     - name: create members
       shell: |
         source {{ openrc }}
         set -e
-        /tmp/wait-for-lb-done.sh lb-{{ index_pj }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}
-        exists=`/tmp/if-exists-resource.sh members mb-{{ index_pj }}-{{ item }} {{ neutrondb_hostname }} {{ neutrondb_password }} {{ neutrondb_name }}`
+        /tmp/wait-for-lb-done.sh lb-{{ index_pj }}
+        exists=`/tmp/if-exists-resource.sh members mb-{{ index_pj }}-{{ item }}`
         if [ "$exists" = "false" ]; then
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
             --name mb-{{ index_pj }}-{{ item }} --tenant-id {{ project_id.stdout }} \
@@ -111,3 +127,7 @@
       loop_control:
         label: mb-{{ index_pj }}-{{ item }}
       tags: member
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
