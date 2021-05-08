@@ -46,6 +46,7 @@
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
+      register: result
 
     - name: create pools
       shell: |
@@ -61,12 +62,13 @@
         fi
       with_items: "{{ range(0 , count_pl|int, 1) | list }}"
       loop_control:
-        label: pl-{{ index_pj }}-{{ item }}
+        label: pl-{{ index_pj }}-{{ item }}-{{ result.delta }}
       tags: pool
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
+      register: result
 
     - name: create healthmonitors
       shell: |
@@ -82,12 +84,13 @@
         fi
       with_items: "{{ range(0 , count_hm|int, 1) | list }}"
       loop_control:
-        label: hm-{{ index_pj }}-{{ item }}
+        label: hm-{{ index_pj }}-{{ item }}-{{ result.delta }}
       tags: healthmonitor
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
+      register: result
 
     - name: create listeners
       shell: |
@@ -103,12 +106,13 @@
         fi
       with_items: "{{ range(0 , count_ls|int, 1) | list }}"
       loop_control:
-        label: ls-{{ index_pj }}-{{ item }}
+        label: ls-{{ index_pj }}-{{ item }}-{{ result.delta }}
       tags: listener
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
+      register: result
     
     - name: create members
       shell: |
@@ -125,9 +129,10 @@
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"
       loop_control:
-        label: mb-{{ index_pj }}-{{ item }}
+        label: mb-{{ index_pj }}-{{ item }}-{{ result.delta }}
       tags: member
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
+      register: result
