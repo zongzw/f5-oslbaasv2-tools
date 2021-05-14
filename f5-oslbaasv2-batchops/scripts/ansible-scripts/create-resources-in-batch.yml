@@ -92,6 +92,7 @@
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
+      ignore_errors: yes
 
     - name: create listeners
       shell: |
@@ -114,6 +115,7 @@
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
+      ignore_errors: yes
     
     - name: create members
       shell: |
