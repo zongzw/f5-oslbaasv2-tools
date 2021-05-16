@@ -1,0 +1,58 @@
+---
+
+- hosts: neutron_servers
+  gather_facts: False
+  remote_user: root
+  tasks:
+    - name: get time stamp
+      shell: date +%Y%m%d-%H%M%S
+      register: timestamp_str
+      delegate_to: localhost
+      run_once: true
+
+    - name: make sure {{ target_logging_dir }} exist
+      file:
+        path: "{{ target_logging_dir }}/{{ timestamp_str.stdout }}"
+        state: directory
+      delegate_to: localhost
+      run_once: true
+
+    - name: find all request logging file
+      find:
+        paths: /var/log/neutron
+        patterns: 'server.log*,f5-openstack-agent*'
+        age: "{{ log_file_age }}"
+      register: files
+
+    - name: show all log files
+      debug: msg="{{ files.files | map(attribute='path') | list }}"
+
+    - name: get logs from neutron servers recent {{ log_file_age }}
+      fetch:
+        dest: "{{ target_logging_dir }}/{{ timestamp_str.stdout }}"
+        src: "{{ item }}"
+        validate_checksum: false
+      with_items:
+        - "{{ files.files | map(attribute='path') | list }}"
+    
+    - name: list all .gz files
+      find:
+        paths: "{{ target_logging_dir }}/{{ timestamp_str.stdout }}"
+        patterns: "*.gz"
+        recurse: yes
+      register: gzfiles
+      run_once: true
+      delegate_to: localhost
+
+    - debug: msg="{{ gzfiles.files | map(attribute='path') | list }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: ungzip all gz files
+      shell: gzip -d {{ item }}
+      run_once: true
+      delegate_to: localhost
+      with_items:
+        - "{{ gzfiles.files | map(attribute='path') | list }}"
+  
+
