@@ -20,7 +20,7 @@
     - name: find all request logging file
       find:
         paths: /var/log/neutron
-        patterns: 'server.log*,f5-openstack-agent*'
+        patterns: 'server.log*,{{ f5_agent_log_pattern }}'
         age: "{{ log_file_age }}"
       register: files
 
