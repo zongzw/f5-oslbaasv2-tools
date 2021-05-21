@@ -12,7 +12,7 @@
     
     - name: clean data from neutron db tables
       mysql_db:
-        name: "{{ neutrondb_name }}"
+        name: "{{ neutrondb_database}}"
         login_user: neutron
         login_password: "{{ neutrondb_password }}"
         login_host: "{{ neutrondb_hostname }}"
