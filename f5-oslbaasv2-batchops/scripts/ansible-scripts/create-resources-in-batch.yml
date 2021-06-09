@@ -4,33 +4,18 @@
   remote_user: root
   gather_facts: false
   tasks:
-    - import_tasks: ./task-set-testsuite.yml
-      delegate_to: localhost
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
+    - block:
+      tags: always
 
-    - import_tasks: ./task-pre-test.yml
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
+      - block:
+        delegate_to: localhost
+        - import_tasks: ./task-set-testsuite.yml
+        - import_tasks: ./task-pre-test.yml
 
-    - name: get {{ project_prefix }}{{ index_pj }} id
-      shell: |
-        source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
-      register: project_id
-      tags:
-        - loadbalancer
-        - listener
-        - pool
-        - healthmonitor
-        - member
+      - name: get {{ project_prefix }}{{ index_pj }} id
+        shell: |
+          source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
+        register: project_id
 
     - name: create loadbalancer
       shell: |
