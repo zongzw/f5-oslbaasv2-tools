@@ -5,17 +5,37 @@
   gather_facts: false
   tasks:
     - block:
-      tags: always
-
       - block:
-        delegate_to: localhost
         - import_tasks: ./task-set-testsuite.yml
         - import_tasks: ./task-pre-test.yml
+        delegate_to: localhost
 
       - name: get {{ project_prefix }}{{ index_pj }} id
         shell: |
           source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
         register: project_id
+
+      - name: mysql query all names of resources
+        community.mysql.mysql_query:
+          login_host: "{{ neutrondb_hostname }}"
+          login_user: neutron
+          login_password: "{{ neutrondb_password }}"
+          login_db: "{{ neutrondb_database }}"
+          query: 
+            - select name, provisioning_status from lbaas_loadbalancers where name like "lb-{{ index_pj }}";
+            - select name, provisioning_status from lbaas_pools where name like "pl-{{ index_pj }}-%";
+            - select name, provisioning_status from lbaas_healthmonitors where name like "hm-{{ index_pj }}-%";
+            - select name, provisioning_status from lbaas_listeners where name like "ls-{{ index_pj }}-%";
+            - select name, provisioning_status from lbaas_members where name like "mb-{{ index_pj }}-%";
+        register: resource_names
+
+      - set_fact:
+          lbs: "{{ resource_names.query_result[0] | map(attribute='name') | list }}"
+          pls: "{{ resource_names.query_result[1] | map(attribute='name') | list }}"
+          hms: "{{ resource_names.query_result[2] | map(attribute='name') | list }}"
+          lss: "{{ resource_names.query_result[3] | map(attribute='name') | list }}"
+          mbs: "{{ resource_names.query_result[4] | map(attribute='name') | list }}"
+      tags: always
 
     - name: create loadbalancer
       shell: |
@@ -33,6 +53,7 @@
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
+      when: ('lb-' + (index_pj | string)) not in lbs
 
     - name: create pools
       shell: |
@@ -48,13 +69,14 @@
         fi
       with_items: "{{ range(0 , count_pl|int, 1) | list }}"
       loop_control:
-        label: pl-{{ index_pj }}-{{ item }}-{{ result.delta }}
+        label: pl-{{ index_pj }}-{{ item }}-{{ result.delta | default('0:00:00.000') }}
       tags: pool
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
+      when: ('pl-' + (index_pj | string) + '-' + (item | string)) not in pls
 
     - name: create healthmonitors
       shell: |
@@ -70,7 +92,7 @@
         fi
       with_items: "{{ range(0 , count_hm|int, 1) | list }}"
       loop_control:
-        label: hm-{{ index_pj }}-{{ item }}-{{ result.delta }}
+        label: hm-{{ index_pj }}-{{ item }}-{{ result.delta | default('0:00:00.000') }}
       tags: healthmonitor
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
@@ -78,6 +100,7 @@
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
       ignore_errors: yes
+      when: ('hm-' + (index_pj | string) + '-' + (item | string)) not in hms
 
     - name: create listeners
       shell: |
@@ -93,7 +116,7 @@
         fi
       with_items: "{{ range(0 , count_ls|int, 1) | list }}"
       loop_control:
-        label: ls-{{ index_pj }}-{{ item }}-{{ result.delta }}
+        label: ls-{{ index_pj }}-{{ item }}-{{ result.delta | default('0:00:00.000') }}
       tags: listener
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
@@ -101,6 +124,7 @@
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
       ignore_errors: yes
+      when: ('ls-' + (index_pj | string) + '-' + (item | string)) not in lss
     
     - name: create members
       shell: |
@@ -117,10 +141,11 @@
         fi
       with_items: "{{ range(0 , count_mb|int, 1) | list }}"
       loop_control:
-        label: mb-{{ index_pj }}-{{ item }}-{{ result.delta }}
+        label: mb-{{ index_pj }}-{{ item }}-{{ result.delta | default('0:00:00.000') }}
       tags: member
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
       register: result
+      when: ('mb-' + (index_pj | string) + '-' + (item | string)) not in mbs

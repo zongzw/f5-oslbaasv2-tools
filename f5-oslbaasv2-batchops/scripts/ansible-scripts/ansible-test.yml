@@ -1,0 +1,44 @@
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - debug: msg="hello test."
+    - set_fact:
+        index_pj: 10
+
+    - name: mysql query all names of resources
+      community.mysql.mysql_query:
+        login_host: "{{ neutrondb_hostname }}"
+        login_user: neutron
+        login_password: "{{ neutrondb_password }}"
+        login_db: "{{ neutrondb_database }}"
+        query: 
+          - select name, provisioning_status from lbaas_loadbalancers where name like "lb-%";
+          - select name, provisioning_status from lbaas_pools where name like "pl-{{ index_pj }}-%";
+          - select name, provisioning_status from lbaas_healthmonitors where name like "hm-{{ index_pj }}-%";
+          - select name, provisioning_status from lbaas_listeners where name like "ls-{{ index_pj }}-%";
+          - select name, provisioning_status from lbaas_members where name like "mb-{{ index_pj }}-%";
+      register: resource_names
+
+    - set_fact:
+        lbs: "{{ resource_names.query_result[0] | map(attribute='name') | list }}"
+        pls: "{{ resource_names.query_result[1] | map(attribute='name') | list }}"
+        hms: "{{ resource_names.query_result[2] | map(attribute='name') | list }}"
+        lss: "{{ resource_names.query_result[3] | map(attribute='name') | list }}"
+        mbs: "{{ resource_names.query_result[4] | map(attribute='name') | list }}"
+
+
+    - debug: msg="{{ resource_names }}"
+    # - debug: msg="{{ lbs }}"
+
+
+    - debug: msg="in"
+      with_items: 
+        - [1, 2, 3]
+      when: "'lb-' + (index_pj | string) in lbs"
+
+    - debug: msg="not in"
+
+      with_items: 
+        - [1, 2, 3]
+      when: "'106' in lbs"
