@@ -3,20 +3,10 @@
 projects: 200
 
 testsuites:
-    # canary test
-  - loadbalancers: 2
-    resources: 3
-    members: 4
-
-    # canary test
-  - loadbalancers: 3
-    resources: 2
-    members: 2
-
-    # canary test
-  - loadbalancers: 4
-    resources: 2
-    members: 3
+  #   # canary test
+  # - loadbalancers: 2
+  #   resources: 3
+  #   members: 4
 
     # loadbalancers per tenant.
   - loadbalancers: 1
