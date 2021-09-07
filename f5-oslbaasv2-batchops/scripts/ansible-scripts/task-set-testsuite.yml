@@ -14,11 +14,13 @@
 
 - set_fact: 
     index_pj: "{{ index }}"
-    count_ls: "{{ testsuites[_index|int].listener }}"
-    count_pl: "{{ testsuites[_index|int].pool }}"
-    count_hm: "{{ testsuites[_index|int].healthmonitor }}"
-    count_mb: "{{ testsuites[_index|int].member }}"
+    count_lb: "{{ testsuites[_index|int].loadbalancers}}"
+    count_rc: "{{ testsuites[_index|int].resources }}"
+    count_mb: "{{ testsuites[_index|int].members * testsuites[_index|int].resources }}"
+    count_mb_per_pl: "{{ testsuites[_index|int].members }}"
 
-- debug: msg="Creating in project {{ project_prefix }}{{ index_pj }} => 
-    {{ count_ls }} listeners, {{ count_pl }} pools, {{ count_hm }} healthmonitors, {{ count_mb }} members"
+- debug: 
+    msg: "Creating in project {{ project_prefix }}{{ index_pj }} => 
+        {{ count_lb }} loadbalancers, each of which has 
+        [{{ count_rc }} listeners, {{ count_rc }} pools, {{ count_rc }} healthmonitors, {{ count_mb }} members]"
 

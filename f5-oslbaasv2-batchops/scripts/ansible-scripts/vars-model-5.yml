@@ -3,53 +3,60 @@
 projects: 200
 
 testsuites:
-  - loadbalancer: 1
-    listener: 100
-    pool: 100
-    healthmonitor: 100
-    member: 100
-  - loadbalancer: 1
-    listener: 8
-    pool: 8
-    healthmonitor: 8
-    member: 500
-  - loadbalancer: 1
-    listener: 16
-    pool: 16
-    healthmonitor: 16
-    member: 500
-  - loadbalancer: 1
-    listener: 32
-    pool: 32
-    healthmonitor: 32
-    member: 500
-  - loadbalancer: 1
-    listener: 50
-    pool: 50
-    healthmonitor: 50
-    member: 500
-  - loadbalancer: 1
-    listener: 60
-    pool: 60
-    healthmonitor: 50
-    member: 500
-  - loadbalancer: 1
-    listener: 70
-    pool: 70
-    healthmonitor: 70
-    member: 500
-  - loadbalancer: 1
-    listener: 80
-    pool: 80
-    healthmonitor: 80
-    member: 500
-  - loadbalancer: 1
-    listener: 90
-    pool: 90
-    healthmonitor: 90
-    member: 500
-  - loadbalancer: 1
-    listener: 70
-    pool: 70
-    healthmonitor: 70
-    member: 70
+    # canary test
+  - loadbalancers: 2
+    resources: 3
+    members: 4
+
+    # canary test
+  - loadbalancers: 3
+    resources: 2
+    members: 2
+
+    # canary test
+  - loadbalancers: 4
+    resources: 2
+    members: 3
+
+    # loadbalancers per tenant.
+  - loadbalancers: 1
+    # listeners/pools/healthmonitors per loadbalancer.
+    resources: 100
+    # members per pool.
+    members: 1
+
+  - loadbalancers: 1
+    resources: 8
+    members: 64
+
+  - loadbalancers: 1
+    resources: 16
+    members: 32
+
+  - loadbalancers: 1
+    resources: 32
+    members: 16
+
+  - loadbalancers: 1
+    resources: 50
+    members: 10
+
+  - loadbalancers: 1
+    resources: 60
+    members: 8
+
+  - loadbalancers: 1
+    resources: 70
+    members: 7
+
+  - loadbalancers: 1
+    resources: 80
+    members: 6
+
+  - loadbalancers: 1
+    resources: 90
+    members: 5
+
+  - loadbalancers: 1
+    resources: 70
+    members: 7

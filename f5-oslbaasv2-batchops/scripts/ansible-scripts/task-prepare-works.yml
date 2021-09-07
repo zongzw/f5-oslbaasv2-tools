@@ -1,0 +1,34 @@
+
+- import_tasks: ./task-set-testsuite.yml
+
+- name: copy scripts to remote host
+  copy: src={{ item }} dest=/tmp/ force=yes mode=0755
+  with_fileglob:
+    - ./*.sh
+    - ./*.sql
+
+- name: get {{ project_prefix }}{{ index_pj }} id
+  shell: |
+    source {{ openrc }} && openstack project show {{ project_prefix }}{{ index_pj }} --format value --column id
+  register: project_id
+
+- name: mysql query all names of resources
+  community.mysql.mysql_query:
+    login_host: "{{ neutrondb_hostname }}"
+    login_user: neutron
+    login_password: "{{ neutrondb_password }}"
+    login_db: "{{ neutrondb_database }}"
+    query: 
+      - select name, provisioning_status from lbaas_loadbalancers where name like "lb-{{ index_pj }}-%";
+      - select name, provisioning_status from lbaas_pools where name like "pl-{{ index_pj }}-%";
+      - select name, provisioning_status from lbaas_healthmonitors where name like "hm-{{ index_pj }}-%";
+      - select name, provisioning_status from lbaas_listeners where name like "ls-{{ index_pj }}-%";
+      - select name, provisioning_status from lbaas_members where name like "mb-{{ index_pj }}-%";
+  register: resource_names
+
+- set_fact:
+    lbs: "{{ resource_names.query_result[0] | map(attribute='name') | list }}"
+    pls: "{{ resource_names.query_result[1] | map(attribute='name') | list }}"
+    hms: "{{ resource_names.query_result[2] | map(attribute='name') | list }}"
+    lss: "{{ resource_names.query_result[3] | map(attribute='name') | list }}"
+    mbs: "{{ resource_names.query_result[4] | map(attribute='name') | list }}"
