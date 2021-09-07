@@ -3,9 +3,7 @@
 projects: 5
 
 testsuites:
-  - loadbalancer: 1
-    listener: 1
-    pool: 1
-    healthmonitor: 1
-    member: 600
+  - loadbalancers: 1
+    resources: 1
+    members: 600
 
