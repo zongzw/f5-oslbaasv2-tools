@@ -1,0 +1,83 @@
+- block:
+    - set_fact:
+        lb_name: "lb-{{ index_pj }}-{{ index_lb }}"
+        pl_name: "pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
+        ls_name: "ls-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
+        hm_name: "hm-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
+
+    - name: create pool {{ pl_name }}
+      shell: |
+        source {{ openrc }}
+        set -e
+        /tmp/wait-for-lb-done.sh {{ lb_name }}
+        exists=`/tmp/if-exists-resource.sh pools {{ pl_name }}`
+        if [ "$exists" = "false" ]; then
+          neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
+            --name {{ pl_name }} --tenant-id {{ project_id.stdout }} \
+            --loadbalancer {{ lb_name }} \
+            --protocol HTTP --lb-algorithm ROUND_ROBIN
+        fi
+      tags: pool
+      when: pl_name not in pls
+
+    - name: create healthmonitor {{ hm_name }}
+      shell: |
+        source {{ openrc }}
+        set -e
+        /tmp/wait-for-lb-done.sh {{ lb_name }}
+        exists=`/tmp/if-exists-resource.sh healthmonitors {{ hm_name }}`
+        if [ "$exists" = "false" ]; then
+          neutron --os-project-id {{ project_id.stdout }} lbaas-healthmonitor-create \
+            --name {{ hm_name }}  --tenant-id {{ project_id.stdout }} \
+            --pool {{ pl_name }} \
+            --delay 15 --timeout 15 --max-retries 5 --type PING
+        fi
+      tags: healthmonitor
+      register: result
+      ignore_errors: yes
+      when: hm_name not in hms
+
+    - name: create listener {{ ls_name }}
+      shell: |
+        source {{ openrc }}
+        set -e
+        /tmp/wait-for-lb-done.sh {{ lb_name }}
+        exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+        if [ "$exists" = "false" ]; then
+          neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
+            --name {{ ls_name }} --tenant-id {{ project_id.stdout }} \
+            --loadbalancer {{ lb_name }} --default-pool {{ pl_name }} \
+            --protocol HTTP --protocol-port {{ 80 + index_lb*(count_rc|int) + index_rc }}
+        fi
+      tags: listener
+      register: result
+      ignore_errors: yes
+      when: ls_name not in lss
+
+    - name: create members in {{ pl_name }}
+      shell: |
+        source {{ openrc }}
+        set -e
+        /tmp/wait-for-lb-done.sh {{ lb_name }}
+        exists=`/tmp/if-exists-resource.sh members {{ mb_name }}`
+        if [ "$exists" = "false" ]; then
+          neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
+            --name {{ mb_name }} --tenant-id {{ project_id.stdout }} \
+            --protocol-port 80 --subnet {{ subnet_prefix }}{{ index_pj }} \
+            --address {{ index_pj|int + 1 }}.{{ index_lb }}.{{ index_rc }}.{{ index_mb }} \
+            {{ pl_name }}
+        fi
+      with_items: "{{ range(0 , count_mb_per_pl|int, 1) | list }}"
+      loop_control:
+        label: "{{ mb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        loop_var: index_mb
+      tags: member
+      vars:
+        mb_name: mb-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}-{{ index_mb }}
+      register: result
+      when: mb_name not in mbs
+
+  environment:
+    NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+    NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+    NEUTRONDB_DATABASE: "{{ neutrondb_database }}"

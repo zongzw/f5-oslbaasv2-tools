@@ -1,0 +1,15 @@
+---
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+      - import_tasks: ./task-prepare-works.yml
+      tags: always
+
+    - name: create loadbalancers in project {{ index_pj }}
+      include_tasks: ./task-create-lb-group.yml
+      with_items: "{{ range(0 , count_lb|int, 1) | list }}"
+      loop_control:
+        loop_var: index_lb
