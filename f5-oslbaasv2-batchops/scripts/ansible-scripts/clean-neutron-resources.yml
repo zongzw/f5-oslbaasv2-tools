@@ -8,7 +8,11 @@
       ping:
       delegate_to: localhost
 
-    - import_tasks: ./task-pre-test.yml
+    - name: copy scripts to remote host
+      copy: src={{ item }} dest=/tmp/ force=yes mode=0755
+      with_fileglob:
+        - ./*.sh
+        - ./*.sql
     
     - name: clean data from neutron db tables
       mysql_db:

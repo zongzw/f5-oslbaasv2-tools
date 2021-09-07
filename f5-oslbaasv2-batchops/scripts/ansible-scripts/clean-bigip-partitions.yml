@@ -39,11 +39,14 @@
     #   run_once: true
     #   tags: getbigipinfo
 
-    - name: remove resources under partitions
-      file: path=/config/partitions/{{ item.name }}/bigip.conf state=absent
-      with_items: "{{bigip_infos.partitions}}"
-      when: item.name != 'Common'
+    # - name: remove resources under partitions
+    #   file: path=/config/partitions/{{ item.name }}/bigip.conf state=absent
+    #   with_items: "{{bigip_infos.partitions}}"
+    #   when: item.name != 'Common'
     
+    - name: remove resources under partitions
+      shell: rm -f /config/partitions/{{ environment_prefix }}_*/bigip.conf
+
     # file: path=/config/partitions/{{ item.name }} state=absent
     # We may not remove the whole folder /config/partitions/{{ item.name }}.
     # /config/partitions/{{ item.name }}/bigip_base.conf has some network setting, deleting it may lead to the issue: 
@@ -106,10 +109,13 @@
     - name: executing tmsh save sys config
       shell: tmsh save sys config
 
+    # - name: remove resources under partitions
+    #   file: path=/config/partitions/{{ item.name }}/bigip_base.conf state=absent
+    #   with_items: "{{bigip_infos.partitions}}"
+    #   when: item.name != 'Common'
+
     - name: remove resources under partitions
-      file: path=/config/partitions/{{ item.name }}/bigip_base.conf state=absent
-      with_items: "{{bigip_infos.partitions}}"
-      when: item.name != 'Common'
+      shell: rm -rf /config/partitions/{{ environment_prefix }}_*
 
     - name: executing tmsh load sys config
       shell: tmsh load sys config
