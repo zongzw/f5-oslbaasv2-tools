@@ -1,5 +1,0 @@
-- name: copy scripts to remote host
-  copy: src={{ item }} dest=/tmp/ force=yes mode=0755
-  with_fileglob:
-    - ./*.sh
-    - ./*.sql
