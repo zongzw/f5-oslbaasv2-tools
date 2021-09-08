@@ -4,8 +4,7 @@
   remote_user: root
   gather_facts: false
   tasks:
-    - block:
-      - import_tasks: ./task-prepare-works.yml
+    - import_tasks: ./task-prepare-works.yml
       tags: always
 
     - name: create resources in project {{ index_pj }}

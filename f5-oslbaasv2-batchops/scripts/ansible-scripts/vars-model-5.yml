@@ -49,4 +49,4 @@ testsuites:
 
   - loadbalancers: 1
     resources: 70
-    members: 7
+    members: 1
