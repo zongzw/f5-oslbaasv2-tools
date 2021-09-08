@@ -1,10 +1,6 @@
 # Ansible Playbooks For Performance Test
 
-Files in this folder is another way(compared to `f5-oslbaasv2-batchops`) for creating lbaasv2 resources in batch. 
-
-## Why Do we need It
-
-`f5-oslbaasv2-batchops` is an executable binary, which is not easy for maintenance, also the parameter is relatively complicated.
+Files in this folder is a way for creating lbaasv2 resources in batch. 
 
 ## Usage
 
