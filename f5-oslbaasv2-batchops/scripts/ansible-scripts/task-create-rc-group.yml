@@ -1,11 +1,6 @@
 - block:
-    - set_fact:
-        lb_name: "lb-{{ index_pj }}-{{ index_lb }}"
-        pl_name: "pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
-        ls_name: "ls-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
-        hm_name: "hm-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}"
 
-    - name: create pool {{ pl_name }}
+    - name: create pool {{ index_rc }}, total {{ count_rc }}
       shell: |
         source {{ openrc }}
         set -e
@@ -18,9 +13,16 @@
             --protocol HTTP --lb-algorithm ROUND_ROBIN
         fi
       tags: pool
+      with_items: "{{ pl_name }}"
+      loop_control:
+        label: "{{ pl_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      vars:
+        lb_name: lb-{{ index_pj }}-{{ index_lb }}
+        pl_name: pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
+      register: result
       when: pl_name not in pls
 
-    - name: create healthmonitor {{ hm_name }}
+    - name: create healthmonitor {{ index_rc }}, total {{ count_rc }}
       shell: |
         source {{ openrc }}
         set -e
@@ -33,11 +35,18 @@
             --delay 15 --timeout 15 --max-retries 5 --type PING
         fi
       tags: healthmonitor
+      with_items: "{{ hm_name }}"
+      loop_control:
+        label: "{{ hm_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      vars:
+        lb_name: lb-{{ index_pj }}-{{ index_lb }}
+        pl_name: pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
+        hm_name: hm-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
       register: result
       ignore_errors: yes
       when: hm_name not in hms
 
-    - name: create listener {{ ls_name }}
+    - name: create listener {{ index_rc }}, total {{ count_rc }}
       shell: |
         source {{ openrc }}
         set -e
@@ -50,11 +59,18 @@
             --protocol HTTP --protocol-port {{ 80 + index_lb*(count_rc|int) + index_rc }}
         fi
       tags: listener
+      with_items: "{{ ls_name }}"
+      loop_control:
+        label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      vars:
+        lb_name: lb-{{ index_pj }}-{{ index_lb }}
+        pl_name: pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
+        ls_name: ls-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
       register: result
       ignore_errors: yes
       when: ls_name not in lss
 
-    - name: create members in {{ pl_name }}
+    - name: create {{ count_mb_per_pl }} members in pool {{ index_rc }}
       shell: |
         source {{ openrc }}
         set -e
@@ -73,6 +89,8 @@
         loop_var: index_mb
       tags: member
       vars:
+        lb_name: lb-{{ index_pj }}-{{ index_lb }}
+        pl_name: pl-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}
         mb_name: mb-{{ index_pj }}-{{ index_lb }}-{{ index_rc }}-{{ index_mb }}
       register: result
       when: mb_name not in mbs

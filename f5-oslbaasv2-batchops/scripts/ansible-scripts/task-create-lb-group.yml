@@ -1,8 +1,6 @@
 - block:
-    - set_fact:
-        lb_name: "lb-{{ index_pj }}-{{ index_lb }}"
 
-    - name: create loadbalancer {{ lb_name }}
+    - name: create loadbalancer {{ index_lb }}, total {{ count_lb }}
       shell: |
         source {{ openrc }}
         set -e
@@ -13,14 +11,19 @@
             --bandwidth 100
         fi
       tags: loadbalancer
+      with_items: "{{ lb_name }}"
+      loop_control:
+        label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      vars:
+        lb_name: lb-{{ index_pj }}-{{ index_lb }}
+      register: result
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
         NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
         NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
-      when: 
-        - lb_name not in lbs
+      when: lb_name not in lbs
 
-    - name: create pools/listeners/healthmonitors in {{ lb_name }}
+    - name: create pools/listeners/healthmonitors in loadbalancer {{ index_lb }}
       include_tasks: ./task-create-rc-group.yml
       with_items: "{{ range(0, count_rc|int, 1) | list }}"
       loop_control:
