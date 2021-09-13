@@ -7,7 +7,24 @@
     - name: check bigips be reachable
       ping:
       delegate_to: localhost
-    
+
+    - name: remove resources under partitions
+      shell: rm -f /config/partitions/{{ environment_prefix }}_*/bigip.conf
+
+    # file: path=/config/partitions/{{ item.name }} state=absent
+    # We may not remove the whole folder /config/partitions/{{ item.name }}.
+    # /config/partitions/{{ item.name }}/bigip_base.conf has some network setting, deleting it may lead to the issue: 
+      # In some case: 
+      #   01070523:3: No Vlan association for STP Interface Member 1.1.
+      #   Unexpected Error: Loading configuration process failed.
+      # use:
+      #   $ tmsh load /sys config default
+      #   $ tmsh save /sys config partitions all
+      # but, thereafter, we need to reprovision the bigip, no licensing needed.
+
+    - name: executing tmsh load sys config
+      shell: tmsh load sys config
+      
     # Use f5networks.f5_modules.bigip_device_info to handle the issue of: ValueError: invalid value for masklen when ipv6
     # Update f5networks.f5_modules collection: 
       # $ ansible-galaxy collection install f5networks.f5_modules
@@ -43,23 +60,6 @@
     #   file: path=/config/partitions/{{ item.name }}/bigip.conf state=absent
     #   with_items: "{{bigip_infos.partitions}}"
     #   when: item.name != 'Common'
-    
-    - name: remove resources under partitions
-      shell: rm -f /config/partitions/{{ environment_prefix }}_*/bigip.conf
-
-    # file: path=/config/partitions/{{ item.name }} state=absent
-    # We may not remove the whole folder /config/partitions/{{ item.name }}.
-    # /config/partitions/{{ item.name }}/bigip_base.conf has some network setting, deleting it may lead to the issue: 
-      # In some case: 
-      #   01070523:3: No Vlan association for STP Interface Member 1.1.
-      #   Unexpected Error: Loading configuration process failed.
-      # use:
-      #   $ tmsh load /sys config default
-      #   $ tmsh save /sys config partitions all
-      # but, thereafter, we need to reprovision the bigip, no licensing needed.
-
-    - name: executing tmsh load sys config
-      shell: tmsh load sys config
 
     - name: delete self-ips
       bigip_selfip:
