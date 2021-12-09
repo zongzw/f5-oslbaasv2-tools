@@ -1,0 +1,8 @@
+---
+
+projects: 200
+
+testsuites:
+  - loadbalancers: 1
+    resources: 2
+    members: 1
