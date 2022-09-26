@@ -13,6 +13,7 @@ delete from lbaas_healthmonitors;
 delete from lbaas_loadbalancer_statistics;
 delete from lbaas_loadbalancers;
 delete from lbaas_loadbalanceragentbindings;
+-- delete from lbaas_acl.....;
 
 delete from ports where device_owner in ('neutron:LOADBALANCERV2', 'network:f5lbaasv2', 'F5:lbaasv2');
 
