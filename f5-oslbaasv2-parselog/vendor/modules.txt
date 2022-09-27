@@ -1,0 +1,5 @@
+# github.com/google/uuid v1.1.2
+## explicit
+# github.com/trivago/grok v1.0.0
+## explicit
+github.com/trivago/grok

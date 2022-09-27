@@ -1,0 +1,32 @@
+---
+
+# Performance test model: one listener have one l7policy, many l7rules bind to one l7policy.
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+      - name: get {{project_name}} id
+        shell: |
+          source {{ openrc }} && openstack project show {{ project_name }} --format value --column id
+        register: project_id
+
+      - name: create acl group
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh l7policies {{ policy_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-l7policy-create --name {{policy_name}} \
+              --listener {{ls_name}} --action redirect_to_url --redirect-url https://10.10.10.10 --position 1 \
+              --tenant-id {{project_id.stdout}}
+          fi
+        tags: l7policy
+        register: result
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"

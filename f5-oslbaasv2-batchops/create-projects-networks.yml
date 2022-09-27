@@ -37,7 +37,7 @@
         exists=`neutron net-list --format value --column name | grep "^{{ network_prefix }}{{ item }}$"`
         set -e
         if [ $? -eq 0 -a "$exists" != "{{ network_prefix }}{{ item }}" ]; then
-          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network {{ physical_network }} {{ network_prefix }}{{ item }} --provider:segmentation_id {{ 200 + item | int }}
+          neutron net-create --tenant-id $project_id --provider:network_type vlan --provider:physical_network {{ physical_network }} {{ network_prefix }}{{ item }} --provider:segmentation_id {{ 200 + item | int }} --availability-zone-hint nova
           neutron subnet-create --tenant-id $project_id --name {{ subnet_prefix }}{{ item }} {{ network_prefix }}{{ item }} 100.{{ item }}.0.0/16
         fi
       with_items: "{{ test_range }}"

@@ -1,0 +1,8 @@
+---
+
+acl_group_nums: 2
+lb_name: lb-0-0
+ls_name: ls-0-0-0
+pl_name: pl-0-0-0
+policy_name: l7policy-0-0-0
+project_name: proj-perf-0
