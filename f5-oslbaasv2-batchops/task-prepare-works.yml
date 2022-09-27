@@ -6,6 +6,7 @@
   with_fileglob:
     - ./*.sh
     - ./*.sql
+    - ./kps/*
 
 - name: get {{ project_prefix }}{{ index_pj }} id
   shell: |

@@ -18,9 +18,10 @@
     count_rc: "{{ testsuites[_index|int].resources }}"
     count_mb: "{{ testsuites[_index|int].members * testsuites[_index|int].resources }}"
     count_mb_per_pl: "{{ testsuites[_index|int].members }}"
+    count_sni_per_ls: "{{ testsuites[_index|int].snis | default(0) }}"
 
 - debug: 
     msg: "Creating in project {{ project_prefix }}{{ index_pj }} => 
         {{ count_lb }} loadbalancers, each of which has 
-        [{{ count_rc }} listeners, {{ count_rc }} pools, {{ count_rc }} healthmonitors, {{ count_mb }} members]"
+        [{{ count_rc }} listeners({{ count_sni_per_ls }} certs per listeners), {{ count_rc }} pools, {{ count_rc }} healthmonitors, {{ count_mb }} members]"
 

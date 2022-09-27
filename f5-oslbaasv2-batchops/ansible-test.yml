@@ -3,22 +3,21 @@
   gather_facts: false
   tasks:
     - block:
-        - debug: msg=abc
+        - shell: echo zfwefewa-{{ item }}
+          with_items:
+            - "{{ range(0, 3, 1) }}"
+          register: echo_rlt
 
-        - name: Set project and network range
-          set_fact:
-            test_range: "{{ range(index | default(0) | int, projects, 1) | list }}"
-          tags:
-            - project
-            - quota
-            - network
+        - debug: msg="{{ echo_rlt }}"
 
-        - name: debug test_range
-          debug:
-            msg: "{{test_range}}"
+        - set_fact:
+            refs: "{{ refs|default('') }} --sni-container-refs https://afewfawefaw-{{ item }}"
+          with_items:
+            - "{{ range(0, 3, 1) }}"
 
-#      environment:
-#        A: sdfs
+        - debug: msg="{{ refs }}"
+      environment:
+        A: sdfs
     # - name: calling block with conditional on loop
     #   include_tasks: task-create-resource-group.yml
     #   loop: ['world','universe']
