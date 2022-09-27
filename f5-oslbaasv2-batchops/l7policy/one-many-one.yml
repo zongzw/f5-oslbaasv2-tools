@@ -1,7 +1,5 @@
 ---
 
-# Performance test model: many l7policy bind to one listener, and every l7policy has one l7rule.
-
 - hosts: servers
   remote_user: root
   gather_facts: false
@@ -9,12 +7,14 @@
     - block:
       - debug: msg="Parsed l7policy_num {{l7policy_num}}"
 
+      - set_fact: index_pj={{index}}
+
       - set_fact:
-          l7policy_num: "{{l7policy_num}}"
-          lb_name: lb-0-0
-          ls_name: ls-0-0-0
-          pl_name: pl-0-0-0
-          project_name: proj-perf-0
+          lb_name: "lb-{{index_pj}}-0"
+          ls_name: "ls-{{index_pj}}-0-0"
+          pl_name: "pl-{{index_pj}}-0-0"
+          project_name: "proj-perf-{{index_pj}}"
+
 
       - name: get {{project_name}} id
         shell: |
@@ -56,6 +56,21 @@
           policy_name: l7policy-0-0-{{item}}
           rule_name: l7rule-0-0-{{item}}
         register: result
+
+      - name: delete l7policy
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh l7policies {{ policy_name }}`
+          if [ "$exists" = "true" ]; then
+            neutron lbaas-l7policy-delete {{policy_name}}
+          fi
+        loop: "{{range(0, l7policy_num|int, 1) | list}}"
+        loop_control:
+          label: "delete {{policy_name}} success"
+        vars:
+          policy_name: l7policy-0-0-{{item}}
 
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"

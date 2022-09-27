@@ -1,0 +1,62 @@
+---
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+
+      - debug: msg="Parsed acl_group_nums {{acl_group_nums}}"
+
+      - set_fact: index_pj={{index}}
+
+      - set_fact:
+          lb_name: "lb-{{index_pj}}-0"
+          project_name: "proj-perf-{{index_pj}}"
+          acl_group_prefix: "acl_group-{{index_pj}}-0"
+
+      - name: get {{project_name}} id
+        shell: |
+          source {{ openrc }} && openstack project show {{ project_name }} --format value --column id
+        register: project_id
+
+      - name: create acl_group
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-create RegionOne \ 
+            --name {{acl_group_name}} --tenant-id {{project_id.stdout}}
+          fi
+        with_items: "{{range(0, acl_group_nums|int, 1) | list}}"
+        loop_control:
+          label: "{{ acl_group_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: acl_group
+        vars:
+          acl_group_name: "{{acl_group_prefix}}-{{item}}"
+        register: result
+
+      - name: delete acl_group
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
+          if [ "$exists" = "true" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-delete {{acl_group_name}} \
+            --tenant-id {{project_id.stdout}}
+          fi
+        with_items: "{{range(0, acl_group_nums|int, 1) | list}}"
+        loop_control:
+          label: "{{ acl_group_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: acl_group
+        vars:
+          acl_group_name: "{{acl_group_prefix}}-{{item}}"
+        register: result
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
