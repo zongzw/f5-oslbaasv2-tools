@@ -1,0 +1,6 @@
+---
+
+# NOTICE: before run model3, we should ensure there are at least ls_nums listeners in the to bind the acl_group.
+
+index: 2
+ls_nums: 50

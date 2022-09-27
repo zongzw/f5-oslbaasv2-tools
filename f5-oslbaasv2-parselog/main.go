@@ -103,8 +103,8 @@ var (
 		"DATETIME":  `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
 		"MD5":       `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
 		"JSON":      `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
-		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy|L7Rule)`,
-		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule)`,
+		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy|L7Rule|ACLGroup)`,
+		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule|acl_group)`,
 		"ACTION":    `(create|update|delete)`,
 		"WORD":      `\w+`, // [0-9a-zA-Z_] strings
 		"NUM":       `\d+`, // 202 400 200
