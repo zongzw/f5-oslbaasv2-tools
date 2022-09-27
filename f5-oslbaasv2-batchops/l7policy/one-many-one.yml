@@ -1,0 +1,63 @@
+---
+
+# Performance test model: many l7policy bind to one listener, and every l7policy has one l7rule.
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+      - debug: msg="Parsed l7policy_num {{l7policy_num}}"
+
+      - set_fact:
+          l7policy_num: "{{l7policy_num}}"
+          lb_name: lb-0-0
+          ls_name: ls-0-0-0
+          pl_name: pl-0-0-0
+          project_name: proj-perf-0
+
+      - name: get {{project_name}} id
+        shell: |
+          source {{ openrc }} && openstack project show {{ project_name }} --format value --column id
+        register: project_id
+
+      - name: create l7policy
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh l7policies {{ policy_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-l7policy-create --name {{policy_name}} \
+              --listener {{ls_name}} --action redirect_to_url --redirect-url https://10.10.10.10 --position 1 \
+              --tenant-id {{project_id.stdout}}
+          fi
+        with_items: "{{range(0, l7policy_num|int, 1) | list}}"
+        loop_control:
+          label: "{{ policy_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: l7policy
+        vars:
+          policy_name: l7policy-0-0-{{item}}
+        register: result
+
+      - name: create l7rule
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          neutron --os-project-id {{project_id.stdout}} lbaas-l7rule-create {{policy_name}} \
+            --type PATH --compare-type starts_with --value "/api/{{item}}" \
+            --tenant-id {{project_id.stdout}}
+        with_items: "{{range(0, l7policy_num|int, 1) | list}}"
+        loop_control:
+          label: "{{ rule_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: l7policy
+        vars:
+          policy_name: l7policy-0-0-{{item}}
+          rule_name: l7rule-0-0-{{item}}
+        register: result
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"
