@@ -17,7 +17,7 @@
           if [ "$exists" = "false" ]; then
             neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
               --name {{ lb_name }} --tenant-id {{ project_id.stdout }} {{subnet_prefix}}{{ index_pj }} \
-              --bandwidth 100
+              --bandwidth 100 --flavor 13
           fi
         with_items: "{{ range(0 , count_lb|int, 1) | list }}"
         loop_control:

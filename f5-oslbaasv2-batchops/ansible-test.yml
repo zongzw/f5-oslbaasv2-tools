@@ -5,8 +5,20 @@
     - block:
         - debug: msg=abc
 
-      environment:
-        A: sdfs
+        - name: Set project and network range
+          set_fact:
+            test_range: "{{ range(index | default(0) | int, projects, 1) | list }}"
+          tags:
+            - project
+            - quota
+            - network
+
+        - name: debug test_range
+          debug:
+            msg: "{{test_range}}"
+
+#      environment:
+#        A: sdfs
     # - name: calling block with conditional on loop
     #   include_tasks: task-create-resource-group.yml
     #   loop: ['world','universe']

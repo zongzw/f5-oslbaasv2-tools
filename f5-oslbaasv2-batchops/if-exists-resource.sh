@@ -2,7 +2,7 @@
 
 set -x 
 if [ $# -ne 2 ]; then
-    echo "arguments: <loadbalancers|listeners|pools|members|healthmonitors> <name>"
+    echo "arguments: <loadbalancers|listeners|pools|members|healthmonitors|l7policies> <name>"
     exit 1
 fi
 
