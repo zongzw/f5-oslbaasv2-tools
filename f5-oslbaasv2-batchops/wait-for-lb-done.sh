@@ -5,7 +5,7 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-timeout=40
+timeout=140
 delay=3
 
 MYSQL_CMD="mysql -uneutron -h$NEUTRONDB_HOSTNAME -p$NEUTRONDB_PASSWORD $NEUTRONDB_DATABASE"

@@ -1,0 +1,78 @@
+---
+
+projects: 200
+
+testsuites:
+  #   # canary test
+  # - loadbalancers: 2
+  #   resources: 3
+  #   members: 4
+
+    # loadbalancers per tenant.
+  - loadbalancers: 1
+    # listeners/pools/healthmonitors per loadbalancer.
+    resources: 2
+    # members per pool.
+    members: 1
+    # sni references per listener.
+    snis: 3
+
+    # 1
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 10
+
+    # 2
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 20
+
+    # 3
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 30
+
+    # 4
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 40
+
+    # 5
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 50
+
+    # 6
+  - loadbalancers: 1
+    resources: 1
+    members: 1
+    snis: 100
+
+    # 7
+  - loadbalancers: 1
+    resources: 10
+    members: 1
+    snis: 10
+
+    # 8
+  - loadbalancers: 1
+    resources: 20
+    members: 1
+    snis: 5
+
+    # 9
+  - loadbalancers: 1
+    resources: 50
+    members: 1
+    snis: 2
+
+    # 10
+  - loadbalancers: 1
+    resources: 100
+    members: 1
+    snis: 1
