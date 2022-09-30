@@ -103,12 +103,12 @@ var (
 		"DATETIME":  `\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3}`, // 2020-09-27 19:22:54.486
 		"MD5":       `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
 		"JSON":      `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
-		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy|L7Rule)`,
-		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule)`,
+		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy|L7Rule|ACLGroup)`,
+		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule|acl_group)`,
 		"ACTION":    `(create|update|delete)`,
 		"WORD":      `\w+`, // [0-9a-zA-Z_] strings
 		"NUM":       `\d+`, // 202 400 200
-		"RESULT":    `(ACTIVE|ERROR)`,
+		"RESULT":    `(ACTIVE|ERROR|Finish|Fail)`,
 	}
 
 	pLBaaSv2 = map[string]MatchHandler{
@@ -254,6 +254,14 @@ var (
 			Function: nil,
 		},
 
+		// for acl_group: 2022-09-29 16:28:33.882 775226 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite [req-074aa6b0-4549-4cdf-8df6-3ae257c72541 8feb1f55436d4565a2a74fcdf8c2401a d639687d00704a4c8972726ad8536fb3 - - -] Finish to create acl_group 14bbb41c-d3bc-40c7-9751-0b62754460ac create_acl_group /usr/lib/python2.7/site-packages/f5_openstack_agent/lbaasv2/drivers/bigip/agent_manager_lite.py:2193
+		// for acl: 2022-09-29 18:07:35.454 600715 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite [req-c0c25d5f-a8b7-4bfd-8f86-a7f3396c9b8e 8feb1f55436d4565a2a74fcdf8c2401a c69b5895dd3d43d581fa6c3d8b8907c6 - - -] Finish to update acl_group 40561104-1462-40a8-9695-80e7e5c8e751 update_acl_group /usr/lib/python2.7/site-packages/f5_openstack_agent/lbaasv2/drivers/bigip/agent_manager_lite.py:2217
+		// for deletion: 2022-09-29 16:26:39.411 775226 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite [req-f21a174a-eea5-4162-8c74-3d6a42214df6 8feb1f55436d4565a2a74fcdf8c2401a d2e28c1b93604c9eb8af6f486b3cb689 - - -] Finish to delete ACL Group <built-in function id> delete_acl_group /usr/lib/python2.7/site-packages/f5_openstack_agent/lbaasv2/drivers/bigip/agent_manager_lite.py:2204
+		"done_acl_and_group_operation": {
+			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite", // we already have no agent_manager, so let's inline the agent_manager_lite for matching
+			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite \[%{REQID:request_id} .*\].* ` +
+				`%{RESULT:result} to (create|update|delete) (acl_group|ACL Group).*`,
+		},
 		// "test_basic_pattern":
 		// 	`%{LBTYPE:object_type}`,
 	}
