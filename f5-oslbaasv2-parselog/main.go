@@ -724,10 +724,9 @@ func HandleArguments(logpaths []string, outputFilePath string) ([]*os.File, erro
 	pathOK = true
 	for _, n := range paths {
 		p := string(n)
-		f, _ := os.Stat(string(p))
-
-		if os.IsNotExist(err) {
-			logger.Println(err.Error())
+		f, e := os.Stat(string(p))
+		if os.IsNotExist(e) {
+			logger.Println(e.Error())
 			pathOK = false
 		}
 
