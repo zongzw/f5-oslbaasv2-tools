@@ -12,8 +12,8 @@
             // "program": "${workspaceFolder}/main.go",
             "program": "${workspaceFolder}",
             "args": [
-                "--logpath", "${workspaceFolder}/tests/req-6bfe2b83-6047-4fa5-90de-41d606973d8a.log",
-                "--output-filepath", "${workspaceFolder}/output/result.csv"
+                "--logpath", "${workspaceFolder}/tests/delete-acls-req-f21a174a-eea5-4162-8c74-3d6a42214df6.log",
+                "--output-filepath", "${workspaceFolder}/output/delete-acls.csv"
             ]
         }
     ]
