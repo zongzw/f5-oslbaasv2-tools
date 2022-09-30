@@ -590,7 +590,7 @@ func OutputResult(filepath string) {
 	titleLine := []string{}
 	t := reflect.TypeOf(RequestContext{})
 	for i := 0; i < t.NumField(); i++ {
-		if !strings.Contains(t.Field(i).Tag.Get("my"), "noprint") {
+		if strings.Contains(t.Field(i).Tag.Get("my"), "noprint") {
 			continue
 		}
 		titleLine = append(titleLine, t.Field(i).Tag.Get("json"))
@@ -606,7 +606,7 @@ func OutputResult(filepath string) {
 		v := reflect.ValueOf(*pRC)
 		t := reflect.TypeOf(RequestContext{})
 		for i := 0; i < v.NumField(); i++ {
-			if !strings.Contains(t.Field(i).Tag.Get("my"), "noprint") {
+			if strings.Contains(t.Field(i).Tag.Get("my"), "noprint") {
 				continue
 			}
 			f := v.Field(i)
