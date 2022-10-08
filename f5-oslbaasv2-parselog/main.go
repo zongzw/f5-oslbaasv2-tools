@@ -104,8 +104,8 @@ var (
 		"MD5":       `[0-9a-z]{32}`,                              // 62c38230485b4794a8eedece5dac9192
 		"JSON":      `\{.*\}`,                                    // {u'bandwidth_limit_rule': {u'max_kbps': 102400, u'direction': u'egress', u'max_burst_kbps': 102400}}
 		"LBTYPE":    `(LoadBalancer|Listener|Pool|Member|HealthMonitor|L7Policy|L7Rule|ACLGroup)`,
-		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule|acl_group)`,
-		"ACTION":    `(create|update|delete)`,
+		"LBTYPESTR": `(loadbalancer|listener|pool|member|health_monitor|l7policy|l7rule|acl_group|acl_bind)`,
+		"ACTION":    `(create|update|delete|update_acl_bind)`,
 		"WORD":      `\w+`, // [0-9a-zA-Z_] strings
 		"NUM":       `\d+`, // 202 400 200
 		"RESULT":    `(ACTIVE|ERROR|Finish|Fail)`,
@@ -152,19 +152,20 @@ var (
 		// Calling driver operation ListenerManager.delete
 		"neutron_lbaas_driver": {
 			KeyString: "neutron_lbaas.services.loadbalancer.plugin",
-			Pattern: `%{DATETIME:time_neutron_lbaas_driver} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_neutron_lbaas_driver} .* neutron_lbaas.services.loadbalancer.plugin \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`Calling driver operation %{LBTYPE:object_type}Manager.%{ACTION:operation_type}.*$`,
 			Function: nil,
 		},
 
-		// 05neu-core/server.log-1005:2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2
+		// 2020-10-05 10:20:17.251 117825 DEBUG f5lbaasdriver.v2.bigip.driver_v2
 		// [req-92db71fb-8513-431b-ac79-5423a749b6d7 009ac6496334436a8eba8daa510ef659 62c38230485b4794a8eedece5dac9192 - default default]
 		// f5lbaasdriver.v2.bigip.driver_v2.LoadBalancerManager method create called with arguments (<neutron_lib.context.Context object at 0x284cb250>,
 		// <neutron_lbaas.services.loadbalancer.data_models.LoadBalancer object at 0xdb44250>) {}
 		// wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
+		// 2022-09-29 17:20:41.612 835635 DEBUG f5lbaasdriver.v2.bigip.driver_v2 [req-20b7275e-e910-4dd0-97dd-b843ce75f457 8feb1f55436d4565a2a74fcdf8c2401a 0e20b2400c4a46ac8b55d52dabde2249 - default default] f5lbaasdriver.v2.bigip.driver_v2.ListenerManager method update_acl_bind called with arguments (<neutron_lib.context.Context object at 0x7f2a256ff350>, <neutron_lbaas.services.loadbalancer.data_models.Listener object at 0x7f2a25742750>, <neutron_lbaas.services.loadbalancer.data_models.ACLGroupListenerBinding object at 0x7f2a255b3610>) {} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5driver": {
 			KeyString: "f5lbaasdriver.v2.bigip.driver_v2",
-			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_f5driver} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.driver_v2.%{LBTYPE:object_type}Manager method %{ACTION:operation_type} called with .*$`,
 			Function: nil,
 		},
@@ -181,7 +182,7 @@ var (
 		// create /usr/lib/python2.7/site-packages/f5lbaasdriver/v2/bigip/driver_v2.py:727
 		"create_port": {
 			KeyString: "f5lbaasdriver.v2.bigip.driver_v2",
-			Pattern: `%{DATETIME:time_portcreated} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_portcreated} .* f5lbaasdriver.v2.bigip.driver_v2 \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`the port created here is: .*$`,
 			Function: nil,
 		},
@@ -206,7 +207,7 @@ var (
 		// og/helpers.py:66
 		"rpc_f5agent": {
 			KeyString: "f5lbaasdriver.v2.bigip.agent_rpc",
-			Pattern: `%{DATETIME:time_rpc} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_rpc} .* f5lbaasdriver.v2.bigip.agent_rpc \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`f5lbaasdriver.v2.bigip.agent_rpc.LBaaSv2AgentRPC method %{ACTION}_%{LBTYPESTR} called with arguments ` +
 				`.*? 'id': '%{UUID:object_id}'.*`,
 			Function: nil,
@@ -219,7 +220,7 @@ var (
 		// 7'}} wrapper /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"call_f5agent": {
 			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip",
-			Pattern: `%{DATETIME:time_f5agent} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD:agent_module} \[%{REQID:request_id} .*\] ` +
+			Pattern: `%{DATETIME:time_f5agent} .* f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD:agent_module} \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] ` +
 				`f5_openstack_agent.lbaasv2.drivers.bigip.%{WORD}.LbaasAgentManager method %{ACTION}_%{LBTYPESTR} ` +
 				`called with arguments .*`,
 			Function: nil,
@@ -230,7 +231,7 @@ var (
 		// suffix:  AND kwargs: {} wrapper /usr/lib/python2.7/site-packages/icontrol/session.py:257
 		"rest_call_bigip": {
 			KeyString: "WITH uri: ",
-			Pattern:   `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} .*\] %{WORD:bigip_request_method} WITH uri: .*icontrol/session.py.*`,
+			Pattern:   `%{DATETIME:bigip_request_time} .* \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] %{WORD:bigip_request_method} WITH uri: .*icontrol/session.py.*`,
 			Function:  SetAccessBIP,
 		},
 
@@ -238,7 +239,7 @@ var (
 		// 94f2338bf383405db151c4784c0e358c - - -] RESPONSE::STATUS: 200 Content-Type: application/json; charset=UTF-8 Content-Encoding: None
 		"rest_bigip_response": {
 			KeyString: "RESPONSE::STATUS: ",
-			Pattern:   `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
+			Pattern:   `%{DATETIME:bigip_response_time} .* \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\] RESPONSE::STATUS: %{NUM:bigip_response_code} .*`,
 			Function:  SetBIPResponse,
 		},
 
@@ -249,7 +250,7 @@ var (
 		// /usr/lib/python2.7/site-packages/oslo_log/helpers.py:66
 		"update_loadbalancer_status": {
 			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc",
-			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} .*\].* ` +
+			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.plugin_rpc \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\].* ` +
 				`method update_loadbalancer_status called with arguments.*%{UUID:loadbalancer}.*%{RESULT:result}.*`,
 			Function: nil,
 		},
@@ -259,7 +260,7 @@ var (
 		// for deletion: 2022-09-29 16:26:39.411 775226 DEBUG f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite [req-f21a174a-eea5-4162-8c74-3d6a42214df6 8feb1f55436d4565a2a74fcdf8c2401a d2e28c1b93604c9eb8af6f486b3cb689 - - -] Finish to delete ACL Group <built-in function id> delete_acl_group /usr/lib/python2.7/site-packages/f5_openstack_agent/lbaasv2/drivers/bigip/agent_manager_lite.py:2204
 		"done_acl_and_group_operation": {
 			KeyString: "f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite", // we already have no agent_manager, so let's inline the agent_manager_lite for matching
-			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite \[%{REQID:request_id} .*\].* ` +
+			Pattern: `%{DATETIME:time_update_status} .* f5_openstack_agent.lbaasv2.drivers.bigip.agent_manager_lite \[%{REQID:request_id} %{WORD:user_id} %{MD5:tenant_id} .*\].* ` +
 				`%{RESULT:result} to (create|update|delete) (acl_group|ACL Group).*`,
 		},
 		// "test_basic_pattern":
@@ -769,6 +770,7 @@ func CalculateDuration() {
 		tNeutronPRB := FKTheTime(rc.TimeNeutronAPIControllerPrepareRequestBody)
 		tNeutronDoCreate := FKTheTime(rc.TimeNeutronAPIControllerDoCreate)
 		tNeutronPlugin := FKTheTime(rc.TimeNeutronLBaaSPlugin)
+		tNeutronDriver := FKTheTime(rc.TimeNeutronLBaaSDriver)
 		tDriver := FKTheTime(rc.TimeF5Driver)
 		tPortCreated := FKTheTime(rc.TimePortCreated)
 		tRPC := FKTheTime(rc.TimeRPC)
@@ -778,15 +780,21 @@ func CalculateDuration() {
 		rc.TimestampELK = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%03dZ",
 			tNeutronPRB.Year(), tNeutronPRB.Month(), tNeutronPRB.Day(),
 			tNeutronPRB.Hour(), tNeutronPRB.Minute(), tNeutronPRB.Second(), tNeutronPRB.Nanosecond()/1e6)
+
 		rc.DurationNeutronAction = tNeutronPRB.Sub(tNeutronAction)
 		rc.DurationNeutronPRB = tNeutronDoCreate.Sub(tNeutronPRB)
 		rc.DurationNeutronDoCreate = tNeutronPlugin.Sub(tNeutronDoCreate)
-		rc.DurationNeutronTotal = tDriver.Sub(tNeutronPRB)
+		for _, tSrc := range []time.Time{tNeutronPRB, tNeutronDoCreate, tNeutronPlugin, tNeutronDriver} {
+			if !tSrc.IsZero() {
+				rc.DurationNeutronTotal = tDriver.Sub(tSrc)
+				rc.DurationTotal = tUpdate.Sub(tSrc)
+				break
+			}
+		}
 		rc.DurationF5Driver = tRPC.Sub(tDriver)
 		rc.DurationPortCreated = tPortCreated.Sub(tDriver)
 		rc.DurationRPC = tAgent.Sub(tRPC)
 		rc.DurationF5Agent = tUpdate.Sub(tAgent)
-		rc.DurationTotal = tUpdate.Sub(tNeutronPRB)
 
 		biplen := len(rc.BigipAccesses)
 		if biplen%2 != 0 {
