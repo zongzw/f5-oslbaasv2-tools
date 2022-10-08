@@ -1,0 +1,109 @@
+---
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+
+      - debug: msg="Parsed ls_nums {{ls_nums}}"
+
+      - set_fact: index_pj={{index}}
+
+      - set_fact:
+          lb_name: "lb-{{index_pj}}-0"
+          pl_name: "pl-{{index_pj}}-0-0"
+          project_name: "proj-perf-{{index_pj}}"
+          acl_group_name: "acl_group-{{index_pj}}-0-0"
+          listener_prefix: "ls-{{index_pj}}-0"
+
+      - name: get {{project_name}} id
+        shell: |
+          source {{ openrc }} && openstack project show {{ project_name }} --format value --column id
+        register: project_id
+
+      - name: create acl_group
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-create RegionOne \ 
+            --name {{acl_group_name}} --tenant-id {{project_id.stdout}}
+          fi
+        tags: acl_group
+        register: result
+
+      - name: create listeners
+        shell: |
+          source {{ openrc }}
+          set -e
+          /tmp/wait-for-lb-done.sh {{ lb_name }}
+          exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
+              --name {{ ls_name }} --tenant-id {{ project_id.stdout }} \
+              --loadbalancer {{ lb_name }} --default-pool {{ pl_name }} \
+              --protocol HTTP --protocol-port {{ 80 + item }}
+          fi
+        with_items: "{{range(0, ls_nums|int, 1) | list}}"
+        loop_control:
+          label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: listener
+        vars:
+          ls_name: "{{listener_prefix}}-{{item}}"
+        register: result
+        ignore_errors: yes
+
+      - name: add_listener_acl
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          neutron --os-project-id {{project_id.stdout}} lbaas-add-listener-acl {{acl_group_name}} \
+            {{ listener_name}} --type whitelist --enable True --tenant-id {{project_id.stdout}}
+        with_items: "{{range(0, ls_nums|int, 1) | list}}"
+        loop_control:
+          label: "{{ listener_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: add_listener_rule
+        vars:
+          listener_name: "{{listener_prefix}}-{{item}}"
+        register: result
+
+      - name: remove listener acl
+        shell: |
+          source {{ openrc }}
+          set -e
+          /tmp/wait-for-lb-done.sh {{ lb_name }}
+          exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+          if [ "$exists" = "true" ]; then
+            neutron --os-project-id {{ project_id.stdout }} lbaas-remove-listener-acl {{acl_group_name}} {{ls_name}} \
+            --tenant-id {{ project_id.stdout }}
+          fi
+        with_items: "{{range(0, ls_nums|int, 1) | list}}"
+        loop_control:
+          label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: listener
+        vars:
+          ls_name: "{{listener_prefix}}-{{item}}"
+        register: result
+        ignore_errors: yes
+
+      - name: delete acl_group
+        shell: |
+          source {{openrc}}
+          set -e
+          /tmp/wait-for-lb-done.sh {{lb_name}}
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
+          if [ "$exists" = "true" ]; then
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-delete {{acl_group_name}} \
+            --tenant-id {{project_id.stdout}}          
+          fi
+        tags: acl_group
+        register: result
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"

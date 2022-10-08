@@ -5,62 +5,63 @@
   gather_facts: false
   tasks:
     - block:
-      - debug: msg="Parsed l7rule_num {{l7rule_num}}"
+      - debug: msg="Parsed acl_rule_nums {{acl_rule_nums}}"
 
       - set_fact: index_pj={{index}}
 
       - set_fact:
           lb_name: "lb-{{index_pj}}-0"
-          ls_name: "ls-{{index_pj}}-0-0"
-          pl_name: "pl-{{index_pj}}-0-0"
           project_name: "proj-perf-{{index_pj}}"
-          policy_name: "l7policy-{{index_pj}}-0-0"
-          rule_prefix: "l7rule-{{index_pj}}-0-0"
+          acl_group_name: "acl_group-{{index_pj}}-0-0"
+          acl_rule_prefix: "acl_rule-{{index_pj}}-0"
 
       - name: get {{project_name}} id
         shell: |
           source {{ openrc }} && openstack project show {{ project_name }} --format value --column id
         register: project_id
 
-      - name: create l7policy
+      - name: create acl_group
         shell: |
           source {{openrc}}
           set -e
           /tmp/wait-for-lb-done.sh {{lb_name}}
-          exists=`/tmp/if-exists-resource.sh l7policies {{ policy_name }}`
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
           if [ "$exists" = "false" ]; then
-            neutron --os-project-id {{project_id.stdout}} lbaas-l7policy-create --name {{policy_name}} \
-              --listener {{ls_name}} --action redirect_to_url --redirect-url https://10.10.10.10 --position 1 \
-              --tenant-id {{project_id.stdout}}
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-create RegionOne \ 
+            --name {{acl_group_name}} --tenant-id {{project_id.stdout}}
           fi
-        tags: l7policy
+        tags: acl_group
         register: result
 
-      - name: create l7rule
+      - name: create acl_rule
         shell: |
           source {{openrc}}
           set -e
           /tmp/wait-for-lb-done.sh {{lb_name}}
-          neutron --os-project-id {{project_id.stdout}} lbaas-l7rule-create {{policy_name}} \
-            --type PATH --compare-type starts_with --value "/api/{{item}}" \
-            --tenant-id {{project_id.stdout}}
-        with_items: "{{range(0, l7rule_num|int, 1) | list}}"
+          neutron --os-project-id {{project_id.stdout}} lbaas-acl-rule-create {{acl_group_name}} \
+            --ip-address 11.11.{{ipC}}.{{ipD}} --tenant-id {{project_id.stdout}}
+        with_items: "{{range(0, acl_rule_nums|int, 1) | list}}"
         loop_control:
           label: "{{ rule_name }} delta:{{ result.delta | default('0:00:00.000') }}"
-        tags: l7rule
+        tags: acl_rule
         vars:
-          rule_name: "{{rule_prefix}}-{{item}}"
+          ipC: "{{ (item / 254) | int }}"
+          ipD: "{{ item % 254 }}"
+          rule_name: "{{acl_rule_prefix}}-{{item}}"
         register: result
 
-      - name: delete l7policy
+      - name: delete acl_group
         shell: |
           source {{openrc}}
           set -e
           /tmp/wait-for-lb-done.sh {{lb_name}}
-          exists=`/tmp/if-exists-resource.sh l7policies {{ policy_name }}`
+          exists=`/tmp/if-exists-resource.sh acl_groups {{ acl_group_name }}`
           if [ "$exists" = "true" ]; then
-            neutron lbaas-l7policy-delete {{policy_name}}
+            neutron --os-project-id {{project_id.stdout}} lbaas-acl-group-delete {{acl_group_name}} \
+            --tenant-id {{project_id.stdout}}          
           fi
+        tags: acl_group
+        register: result
 
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
