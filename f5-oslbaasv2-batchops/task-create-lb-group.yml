@@ -6,7 +6,7 @@
     if [ "$exists" = "false" ]; then
       neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
         --name {{ lb_name }} --tenant-id {{ project_id.stdout }} {{subnet_prefix}}{{ index_pj }} \
-        --bandwidth 100  --flavor 13
+        --bandwidth 200  --flavor 12
     fi
   tags: loadbalancer
   with_items: "{{ lb_name }}"
