@@ -80,7 +80,7 @@
           neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
             --name {{ mb_name }} --tenant-id {{ project_id.stdout }} \
             --protocol-port 80 --subnet {{ subnet_prefix }}{{ index_pj }} \
-            --address {{ index_pj|int + 1 }}.{{ index_lb }}.{{ index_rc }}.{{ index_mb }} \
+            --address {{ index_lb|int + 1 }}.{{ index_pj|int }}.{{ index_rc }}.{{ index_mb }} \
             {{ pl_name }}
         fi
       with_items: "{{ range(0 , count_mb_per_pl|int, 1) | list }}"
