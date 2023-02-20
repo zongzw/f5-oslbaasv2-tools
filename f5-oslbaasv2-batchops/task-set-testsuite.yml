@@ -20,6 +20,13 @@
     count_mb_per_pl: "{{ testsuites[_index|int].members }}"
     count_sni_per_ls: "{{ testsuites[_index|int].snis | default(0) }}"
 
+- set_fact:
+    loadbalancer_flavor_options: "--flavor 13"
+  when: agent == "ng"
+- set_fact:
+    loadbalancer_flavor_options: "--flavor 1"
+  when: agent != "ng"
+
 - debug: 
     msg: "Creating in project {{ project_prefix }}{{ index_pj }} => 
         {{ count_lb }} loadbalancers, each of which has 
