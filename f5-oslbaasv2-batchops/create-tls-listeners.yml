@@ -1,0 +1,132 @@
+---
+
+- hosts: servers
+  remote_user: root
+  gather_facts: False
+  tasks:
+    - block:
+      - import_tasks: ./task-prepare-works.yml
+    
+      - name: create loadbalancers for tls test
+        shell: |
+          source {{ openrc }}
+          set -e
+          exists=`/tmp/if-exists-resource.sh loadbalancers {{ lb_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
+              --name {{ lb_name }} --tenant-id {{ project_id.stdout }} {{subnet_prefix}}{{ index_pj }} \
+              --bandwidth 100
+          fi
+        with_items: "{{ range(0 , count_lb|int, 1) | list }}"
+        loop_control:
+          label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: loadbalancer
+        vars:
+          lb_name: lb-tls-{{ index_pj }}-{{ item }}
+        register: result
+
+      # barbican secret and container MUST be created under admin tenant.
+      # --os-project-id {{ project_id.stdout }}
+      
+      - name: create barbican server secrets
+        shell: |
+          source {{ openrc }} && \
+          barbican secret store \
+            --name {{ item.name }} --payload "`cat {{ item.path }}`" \
+            --secret-type {{ item.type }} --payload-content-type "text/plain" \
+            --format value --column "Secret href"
+        register: server_secret_href
+        with_items:
+          - { 'name': 'perf-tls-test-server.key', 'path': '/tmp/server.key', 'type': 'private'}
+          - { 'name': 'perf-tls-test-server.crt', 'path': '/tmp/server.crt', 'type': 'certificate'}
+
+      - debug: msg="server_secret_href => {{ server_secret_href.results[item].stdout }}"
+        with_items: "{{ range(0, server_secret_href.results | length, 1) | list }}"
+
+      - name: create barbican server secret container
+        shell: |
+          source {{ openrc }} && barbican secret container create \
+            --name perf-tls-test-server-{{ item[0] }}-{{ item[1] }}.kps.container \
+            --type certificate --secret private_key={{ server_secret_href.results[0].stdout }} \
+            --secret certificate={{ server_secret_href.results[1].stdout }} --format value --column "Container href"
+        with_nested:
+          - "{{ range(0 , count_lb|int, 1) | list }}"
+          - "{{ range(0 , count_rc|int, 1) | list }}"
+        register: server_containers_href
+
+      - debug: msg="{{ server_containers_href.results[item].stdout }}"
+        with_items: "{{ range(0, server_containers_href.results | length, 1) | list }}"
+
+      - name: create listeners with tls refs
+        shell: |
+          source {{ openrc }}
+          set -e
+          /tmp/wait-for-lb-done.sh {{ lb_name }}
+          exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
+              --name {{ ls_name }} --tenant-id {{ project_id.stdout }} \
+              --loadbalancer {{ lb_name }} \
+              --protocol TERMINATED_HTTPS --protocol-port {{ 443 + item[0]*(count_rc|int) + item[1] }} \
+              --default-tls-container-ref={{ default_tls_container_ref }} \
+              --format value --column "name"
+          fi
+        with_nested:
+          - "{{ range(0 , count_lb|int, 1) | list }}"
+          - "{{ range(0 , count_rc|int, 1) | list }}"
+        loop_control:
+          label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: listener
+        vars:
+          lb_name: lb-tls-{{ index_pj }}-{{ item[0] }}
+          ls_name: ls-tls-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+          default_tls_container_ref: "{{ server_containers_href.results[item[0]*(count_rc|int)+item[1]].stdout }}"
+        ignore_errors: yes
+        register: result
+
+      # - name: go to deletion phase
+      #   pause: prompt="continue to delete?"
+
+      # - name: delete listeners with tls refs
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+      #     if [ "$exists" = "true" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-listener-delete {{ ls_name }}
+      #     fi
+      #   with_nested:
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: listener
+      #   vars:
+      #     lb_name: lb-tls-{{ index_pj }}-{{ item[0] }}
+      #     ls_name: ls-tls-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #     default_tls_container_ref: "{{ server_containers_href.results[0].stdout }}"
+      #   ignore_errors: yes
+      #   register: result
+
+      # - name: delete loadbalancers for tls test
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh loadbalancers {{ lb_name }}`
+      #     if [ "$exists" = "true" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-delete {{ lb_name }}
+      #     fi
+      #   with_items: "{{ range(0 , count_lb|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: loadbalancer
+      #   vars:
+      #     lb_name: lb-tls-{{ index_pj }}-{{ item }}
+      #   register: result
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"

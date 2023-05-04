@@ -2,22 +2,42 @@
   remote_user: root
   gather_facts: false
   tasks:
-    - block:
-        - shell: echo zfwefewa-{{ item }}
-          with_items:
-            - "{{ range(0, 3, 1) }}"
-          register: echo_rlt
+    - name: collect bigip information from partitions
+      f5networks.f5_modules.bigip_device_info:
+        gather_subset:
+          - management-routes
+        provider:
+          user: admin
+          server: "10.250.2.211"
+          password: "P@ssw0rd123"
+          validate_certs: False
+      register: bigip_infos
 
-        - debug: msg="{{ echo_rlt }}"
+    - debug: msg="{{ bigip_infos }}"
+    # - block:
+    #     - debug: msg="{{ j }}, {{ j }}"
+    #       with_items: "{{ range(0, 10, 1) }}"
+    #       loop_control:
+    #         index_var: j
+      # with_items: "{{ range(0, 10, 1) }}"
+      # loop_control:
+      #   index_var: i
+    # - block:
+    #     - shell: echo zfwefewa-{{ item }}
+    #       with_items:
+    #         - "{{ range(0, 3, 1) }}"
+    #       register: echo_rlt
 
-        - set_fact:
-            refs: "{{ refs|default('') }} --sni-container-refs https://afewfawefaw-{{ item }}"
-          with_items:
-            - "{{ range(0, 3, 1) }}"
+    #     - debug: msg="{{ echo_rlt }}"
 
-        - debug: msg="{{ refs }}"
-      environment:
-        A: sdfs
+    #     - set_fact:
+    #         refs: "{{ refs|default('') }} --sni-container-refs https://afewfawefaw-{{ item }}"
+    #       with_items:
+    #         - "{{ range(0, 3, 1) }}"
+
+    #     - debug: msg="{{ refs }}"
+    #   environment:
+    #     A: sdfs
     # - name: calling block with conditional on loop
     #   include_tasks: task-create-resource-group.yml
     #   loop: ['world','universe']
