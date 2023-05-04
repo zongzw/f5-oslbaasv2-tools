@@ -1,0 +1,25 @@
+---
+
+projects: 200
+
+testsuites:
+  #   # canary test
+#   - loadbalancers: 1
+#     resources: 2
+#     members: 2
+
+   - loadbalancers: 1
+     resources: 1
+     members: 200
+
+   - loadbalancers: 1
+     resources: 8
+     members: 64
+
+   - loadbalancers: 1
+     resources: 32
+     members: 16
+
+   - loadbalancers: 1
+     resources: 50
+     members: 10
