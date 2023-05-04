@@ -1,0 +1,140 @@
+---
+
+# 此文件是 create-resources-in-batch.yml 的复制版本
+#   目前唯一的差别是 lbaas-loadbalancer-create 中的 subnet
+
+- hosts: servers
+  remote_user: root
+  gather_facts: false
+  tasks:
+    - block:
+      - import_tasks: ./task-prepare-works.yml
+      tags: always
+
+    - block:
+      - name: create loadbalancers
+        shell: |
+          source {{ openrc }}
+          set -e
+          exists=`/tmp/if-exists-resource.sh loadbalancers {{ lb_name }}`
+          if [ "$exists" = "false" ]; then
+            neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-create \
+              --name {{ lb_name }} --tenant-id {{ project_id.stdout }} ipv6-pd-sub \
+              --bandwidth 200 --flavor 5
+          fi
+        with_items: "{{ range(0 , count_lb|int, 1) | list }}"
+        loop_control:
+          label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+        tags: loadbalancer
+        vars:
+          lb_name: lb-{{ index_pj }}-{{ item }}
+        register: result
+        when: lb_name not in lbs
+
+      # - name: create pools
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh pools {{ pl_name }}`
+      #     if [ "$exists" = "false" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-pool-create \
+      #         --name {{ pl_name }} --tenant-id {{ project_id.stdout }} \
+      #         --loadbalancer {{ lb_name }} \
+      #         --protocol HTTP --lb-algorithm ROUND_ROBIN
+      #     fi
+      #   with_nested:
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ pl_name }} delta: {{ result.delta | default('0:00:00.000') }}"
+      #   tags: pool
+      #   vars:
+      #     lb_name: lb-{{ index_pj }}-{{ item[0] }}
+      #     pl_name: pl-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #   register: result
+      #   when: pl_name not in pls
+
+      # - name: create healthmonitors
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh healthmonitors {{ hm_name }}`
+      #     if [ "$exists" = "false" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-healthmonitor-create \
+      #         --name {{ hm_name }}  --tenant-id {{ project_id.stdout }} \
+      #         --pool {{ pl_name }} \
+      #         --delay 15 --timeout 15 --max-retries 5 --type PING
+      #     fi
+      #   with_nested: 
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ hm_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: healthmonitor
+      #   vars:
+      #     lb_name: lb-{{ index_pj }}-{{ item[0] }}
+      #     pl_name: pl-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #     hm_name: hm-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #   register: result
+      #   ignore_errors: yes
+      #   when: hm_name not in hms
+
+      # - name: create listeners
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+      #     if [ "$exists" = "false" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-listener-create \
+      #         --name {{ ls_name }} --tenant-id {{ project_id.stdout }} \
+      #         --loadbalancer {{ lb_name }} --default-pool {{ pl_name }} \
+      #         --protocol HTTP --protocol-port {{ 80 + item[0]*(count_rc|int) + item[1] }}
+      #     fi
+      #   with_nested:
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: listener
+      #   vars:
+      #     lb_name: lb-{{ index_pj }}-{{ item[0] }}
+      #     pl_name: pl-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #     ls_name: ls-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #   register: result
+      #   ignore_errors: yes
+      #   when: ls_name not in lss
+      
+      # - name: create members
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh members {{ mb_name }}`
+      #     if [ "$exists" = "false" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-member-create \
+      #         --name {{ mb_name }} --tenant-id {{ project_id.stdout }} \
+      #         --protocol-port 80 --subnet {{ subnet_prefix }}{{ index_pj }} \
+      #         --address {{ index_pj|int + 1 }}.{{ item[0] }}.{{ item[1] }}.{{ item[2] }} \
+      #         {{ pl_name }}
+      #     fi
+      #   with_nested:
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}" 
+      #     - "{{ range(0 , count_mb_per_pl|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ mb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: member
+      #   vars:
+      #     lb_name: lb-{{ index_pj }}-{{ item[0] }}
+      #     pl_name: pl-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #     mb_name: mb-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}-{{ item[2] }}
+      #   register: result
+      #   when: mb_name not in mbs
+
+      environment:
+        NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
+        NEUTRONDB_PASSWORD: "{{ neutrondb_password }}"
+        NEUTRONDB_DATABASE: "{{ neutrondb_database }}"

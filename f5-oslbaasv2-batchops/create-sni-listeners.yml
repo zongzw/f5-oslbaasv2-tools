@@ -40,7 +40,6 @@
           - { 'name': 'perf-sni-test-server.key', 'path': '/tmp/server.key', 'type': 'private'}
           - { 'name': 'perf-sni-test-server.crt', 'path': '/tmp/server.crt', 'type': 'certificate'}
 
-
       - debug: msg="server_secret_href => {{ server_secret_href.results[item].stdout }}"
         with_items: "{{ range(0, server_secret_href.results | length, 1) | list }}"
 
@@ -64,7 +63,7 @@
         with_items: 
           - "{{ range(1, count_sni_per_ls|int, 1) | list }}"
 
-      - debug: msg="args sni_container_refs {{ args_sni_container_refs }}"
+      - debug: msg="args sni_container_refs {{ args_sni_container_refs | default('') }}"
 
       - name: create listeners with sni refs
         shell: |
@@ -77,7 +76,7 @@
               --name {{ ls_name }} --tenant-id {{ project_id.stdout }} \
               --loadbalancer {{ lb_name }} \
               --protocol TERMINATED_HTTPS --protocol-port {{ 443 + item[0]*(count_rc|int) + item[1] }} \
-              --default-tls-container-ref={{ default_tls_container_ref }}  {{ args_sni_container_refs }} \
+              --default-tls-container-ref={{ default_tls_container_ref }}  {{ args_sni_container_refs | default('') }} \
               --format value --column "name"
           fi
         with_nested:
@@ -96,44 +95,44 @@
       # - name: go to deletion phase
       #   pause: prompt="continue to delete?"
 
-      - name: delete listeners with sni refs
-        shell: |
-          source {{ openrc }}
-          set -e
-          /tmp/wait-for-lb-done.sh {{ lb_name }}
-          exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
-          if [ "$exists" = "true" ]; then
-            neutron --os-project-id {{ project_id.stdout }} lbaas-listener-delete {{ ls_name }}
-          fi
-        with_nested:
-          - "{{ range(0 , count_lb|int, 1) | list }}"
-          - "{{ range(0 , count_rc|int, 1) | list }}"
-        loop_control:
-          label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
-        tags: listener
-        vars:
-          lb_name: lb-sni-{{ index_pj }}-{{ item[0] }}
-          ls_name: ls-sni-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
-          default_tls_container_ref: "{{ server_containers_href.results[0].stdout }}"
-        ignore_errors: yes
-        register: result
+      # - name: delete listeners with sni refs
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh listeners {{ ls_name }}`
+      #     if [ "$exists" = "true" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-listener-delete {{ ls_name }}
+      #     fi
+      #   with_nested:
+      #     - "{{ range(0 , count_lb|int, 1) | list }}"
+      #     - "{{ range(0 , count_rc|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ ls_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: listener
+      #   vars:
+      #     lb_name: lb-sni-{{ index_pj }}-{{ item[0] }}
+      #     ls_name: ls-sni-{{ index_pj }}-{{ item[0] }}-{{ item[1] }}
+      #     default_tls_container_ref: "{{ server_containers_href.results[0].stdout }}"
+      #   ignore_errors: yes
+      #   register: result
 
-      - name: delete loadbalancers for sni test
-        shell: |
-          source {{ openrc }}
-          set -e
-          /tmp/wait-for-lb-done.sh {{ lb_name }}
-          exists=`/tmp/if-exists-resource.sh loadbalancers {{ lb_name }}`
-          if [ "$exists" = "true" ]; then
-            neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-delete {{ lb_name }}
-          fi
-        with_items: "{{ range(0 , count_lb|int, 1) | list }}"
-        loop_control:
-          label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
-        tags: loadbalancer
-        vars:
-          lb_name: lb-sni-{{ index_pj }}-{{ item }}
-        register: result
+      # - name: delete loadbalancers for sni test
+      #   shell: |
+      #     source {{ openrc }}
+      #     set -e
+      #     /tmp/wait-for-lb-done.sh {{ lb_name }}
+      #     exists=`/tmp/if-exists-resource.sh loadbalancers {{ lb_name }}`
+      #     if [ "$exists" = "true" ]; then
+      #       neutron --os-project-id {{ project_id.stdout }} lbaas-loadbalancer-delete {{ lb_name }}
+      #     fi
+      #   with_items: "{{ range(0 , count_lb|int, 1) | list }}"
+      #   loop_control:
+      #     label: "{{ lb_name }} delta:{{ result.delta | default('0:00:00.000') }}"
+      #   tags: loadbalancer
+      #   vars:
+      #     lb_name: lb-sni-{{ index_pj }}-{{ item }}
+      #   register: result
 
       environment:
         NEUTRONDB_HOSTNAME: "{{ neutrondb_hostname }}"
